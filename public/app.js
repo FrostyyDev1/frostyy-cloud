@@ -112,7 +112,7 @@ function setThemePreference(pref) {
   state.themePreference = pref;
   applyTheme();
   if (state.user) {
-    fetch('/api/auth/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme: pref }) });
+    sendJson('/api/auth/profile', { theme: pref }, 'PUT');
   }
 }
 
@@ -195,7 +195,6 @@ function bindElements() {
   els.topbarUserAvatar = document.getElementById('topbar-user-avatar');
   els.profileMenu = document.getElementById('profile-menu');
   els.topbarProfileMenu = document.getElementById('topbar-profile-menu');
-  els.notifMenu = document.getElementById('notif-menu');
 }
 
 function bindEvents() {
@@ -284,7 +283,14 @@ function bindEvents() {
 
   bindDropdown(document.getElementById('profile-menu-btn'), els.profileMenu);
   bindDropdown(document.getElementById('topbar-avatar-btn'), els.topbarProfileMenu);
-  bindDropdown(document.getElementById('notif-btn'), els.notifMenu);
+
+  // Ctrl+K / Cmd+K focuses the global search (the topbar advertises this).
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && state.user) {
+      e.preventDefault();
+      els.globalSearchInput?.focus();
+    }
+  });
 
   document.querySelectorAll('[data-auth]').forEach((btn) => {
     btn.addEventListener('click', () => showAuth(btn.dataset.auth === 'signup' ? 'signup' : 'login'));
@@ -482,6 +488,17 @@ async function loadAppConfig() {
   }
 }
 
+/** Sends `body` as JSON and parses the JSON response. Never throws on bad JSON. */
+async function sendJson(url, body, method = 'POST') {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(() => ({}));
+  return { res, data };
+}
+
 async function loadUser() {
   try {
     const res = await fetch('/api/auth/me');
@@ -621,12 +638,10 @@ async function handleAuthSubmit(event) {
   els.authSubmit.innerText = mode === 'signup' ? 'Creating account…' : 'Signing in…';
   render();
   try {
-    const res = await fetch(`/api/auth/${mode === 'signup' ? 'register' : 'login'}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(mode === 'signup' ? { username: email, password, email, inviteCode } : { username: email, password })
-    });
-    const data = await res.json();
+    const { res, data } = await sendJson(
+      `/api/auth/${mode === 'signup' ? 'register' : 'login'}`,
+      mode === 'signup' ? { username: email, password, email, inviteCode } : { username: email, password }
+    );
     if (!res.ok) throw new Error(data.error || 'Authentication failed');
     state.user = data.user;
     state.themePreference = data.user.theme || 'dark';
@@ -639,9 +654,12 @@ async function handleAuthSubmit(event) {
     loadShared();
     loadAdminSummary();
   } catch (err) {
+    // Server-provided message (wrong password, disabled account, used invite
+    // code, ...) shows inline; the auth card stays exactly where it is.
     els.authError.innerText = err.message || 'Authentication failed';
     els.authPassword.value = '';
     if (els.authConfirmPassword) els.authConfirmPassword.value = '';
+    els.authPassword.focus();
   } finally {
     state.loading = false;
     els.authSubmit.disabled = false;
@@ -893,12 +911,9 @@ function bindAdminUserRowActions(row, user) {
 
   quotaBtn?.addEventListener('click', () => withBusyButton(quotaBtn, 'Saving…', async () => {
     const value = quotaSelect.value;
-    const res = await fetch(`/api/admin/users/${encodeURIComponent(user.username)}/quota`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quotaMb: value === '' ? 'default' : value })
+    const { res, data } = await sendJson(`/api/admin/users/${encodeURIComponent(user.username)}/quota`, {
+      quotaMb: value === '' ? 'default' : value
     });
-    const data = await res.json();
     if (!res.ok) return showError(data.error || 'Could not update quota');
     showMessage(`Quota updated for ${user.displayName || user.username}`);
     loadAdminUsers();
@@ -908,12 +923,7 @@ function bindAdminUserRowActions(row, user) {
     const nextRole = user.isAdmin ? 'user' : 'admin';
     const verb = nextRole === 'admin' ? 'Promote' : 'Demote';
     openModal(`${verb} user`, `${verb} "${user.displayName || user.username}" ${nextRole === 'admin' ? 'to admin' : 'to a regular user'}?`, async () => {
-      const res = await fetch(`/api/admin/users/${encodeURIComponent(user.username)}/role`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: nextRole })
-      });
-      const data = await res.json();
+      const { res, data } = await sendJson(`/api/admin/users/${encodeURIComponent(user.username)}/role`, { role: nextRole });
       if (!res.ok) return showError(data.error || 'Could not update role');
       showMessage(data.note || `${verb}d ${user.displayName || user.username}`);
       loadAdminUsers();
@@ -1455,8 +1465,7 @@ async function createFolder() {
   if (!name) return;
   createFolderInFlight = true;
   try {
-    const res = await fetch('/api/folders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, parentId: state.currentFolder }) });
-    const data = await res.json();
+    const { res, data } = await sendJson('/api/folders', { name, parentId: state.currentFolder });
     if (!res.ok) return showError(data.error || 'Unable to create folder');
     showMessage('Folder created');
     loadFiles();
@@ -1537,8 +1546,7 @@ async function bulkDelete() {
   const count = state.selectedIds.size;
   openModal('Move to trash', `Move ${count} item${count === 1 ? '' : 's'} to trash? You can restore them later.`, async () => {
     const ids = [...state.selectedIds];
-    const res = await fetch('/api/files/bulk-delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
-    const data = await res.json();
+    const { res, data } = await sendJson('/api/files/bulk-delete', { ids });
     if (!res.ok) return showError(data.error || 'Delete failed');
     state.selectedIds.clear();
     showMessage('Moved to trash');
@@ -1621,8 +1629,7 @@ async function toggleFavorite(id) {
 async function renameItem(item) {
   const nextName = prompt('New name', item.displayName || item.name);
   if (!nextName || nextName === item.name) return;
-  const res = await fetch(`/api/files/${item.id}/rename`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nextName }) });
-  const data = await res.json();
+  const { res, data } = await sendJson(`/api/files/${item.id}/rename`, { name: nextName });
   if (!res.ok) return showError(data.error || 'Rename failed');
   showMessage('Renamed successfully');
   loadFiles();
@@ -1718,11 +1725,8 @@ async function performMove(destId) {
   const items = moveContext?.items || [];
   if (!items.length) return;
   const results = await Promise.all(items.map((item) =>
-    fetch(`/api/files/${item.id}/move`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parentId: destId || null })
-    }).then(async (res) => ({ ok: res.ok, data: await res.json(), item }))
+    sendJson(`/api/files/${item.id}/move`, { parentId: destId || null })
+      .then(({ res, data }) => ({ ok: res.ok, data, item }))
   ));
   document.getElementById('move-modal').classList.add('hidden');
   const succeeded = results.filter((r) => r.ok);
@@ -1755,8 +1759,7 @@ async function submitSupport(event) {
   if (!subject || !message) return showError('Subject and message are required');
   const button = event.target.querySelector('button[type="submit"]');
   await withBusyButton(button, 'Sending…', async () => {
-    const res = await fetch('/api/support/ticket', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject, message }) });
-    const data = await res.json();
+    const { res, data } = await sendJson('/api/support/ticket', { subject, message });
     if (!res.ok) return showError(data.error || 'Support request failed');
     showMessage('Support request submitted');
     event.target.reset();
@@ -1772,8 +1775,7 @@ async function submitSettings(event) {
   };
   const button = event.target.querySelector('button[type="submit"]');
   await withBusyButton(button, 'Saving…', async () => {
-    const res = await fetch('/api/auth/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const data = await res.json();
+    const { res, data } = await sendJson('/api/auth/profile', payload, 'PUT');
     if (!res.ok) return showError(data.error || 'Profile update failed');
     state.user = data.user;
     showMessage('Profile updated');
@@ -1791,8 +1793,7 @@ async function submitPassword(event) {
   };
   const button = event.target.querySelector('button[type="submit"]');
   await withBusyButton(button, 'Updating…', async () => {
-    const res = await fetch('/api/auth/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const data = await res.json();
+    const { res, data } = await sendJson('/api/auth/password', payload);
     if (!res.ok) return showError(data.error || 'Password update failed');
     event.target.reset();
     showMessage('Password updated');

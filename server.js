@@ -552,11 +552,51 @@ function cookieOptions() {
   return { httpOnly: true, sameSite: 'lax', secure: IS_PRODUCTION, maxAge: 7 * 24 * 60 * 60 * 1000, signed: !!SESSION_SECRET };
 }
 
+/** Lowercased, trimmed identifier for account comparisons. Never throws,
+ * even when the field is missing on a malformed record. */
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+/** Returns the account's bcrypt hash wherever it lives, or null.
+ * The app writes `password`; manually-repaired or imported records sometimes
+ * use `passwordHash`. Anything that doesn't look like a bcrypt hash (e.g. an
+ * old plaintext password field) is treated as missing - never compared. */
+function getPasswordHash(user) {
+  for (const value of [user.password, user.passwordHash]) {
+    if (typeof value === 'string' && /^\$2[abxy]\$/.test(value)) return value;
+  }
+  return null;
+}
+
+/** All records matching an email/username, case-insensitively, checking both
+ * fields since some legacy records have them swapped or only one set. */
+function findAccountCandidates(users, identifier) {
+  const target = normalizeEmail(identifier);
+  if (!target) return [];
+  return users.filter((u) => normalizeEmail(u.username) === target || normalizeEmail(u.email) === target);
+}
+
+/** Picks which record should authenticate when duplicates exist:
+ * enabled-with-hash wins, then disabled-with-hash (so the user sees the
+ * "account disabled" message instead of "invalid credentials"). Records
+ * without a usable hash can never authenticate. */
+function pickLoginRecord(users, identifier) {
+  const candidates = findAccountCandidates(users, identifier);
+  return (
+    candidates.find((u) => !u.disabled && getPasswordHash(u)) ||
+    candidates.find((u) => getPasswordHash(u)) ||
+    null
+  );
+}
+
 app.post('/api/auth/register', authRateLimit, async (req, res) => {
   if (REGISTRATION_MODE === 'disabled') {
     return res.status(403).json({ error: 'Registration is currently disabled on this instance.' });
   }
-  const { username, password, displayName, email, inviteCode } = req.body;
+  const { password, displayName, inviteCode } = req.body || {};
+  const username = normalizeEmail(req.body?.username);
+  const email = normalizeEmail(req.body?.email) || username;
   if (!username || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
@@ -568,6 +608,13 @@ app.post('/api/auth/register', authRateLimit, async (req, res) => {
   }
 
   try {
+    // Check for an existing account BEFORE consuming an invite code, so a
+    // duplicate signup doesn't burn the code. The authoritative re-check
+    // still happens under the users lock below.
+    if (findAccountCandidates(readUsers(), username).length) {
+      return res.status(409).json({ error: 'An account with this email already exists' });
+    }
+
     if (REGISTRATION_MODE === 'invite') {
       const code = String(inviteCode || '').trim();
       if (!code) return res.status(403).json({ error: 'An invite code is required to sign up.' });
@@ -584,21 +631,20 @@ app.post('/api/auth/register', authRateLimit, async (req, res) => {
     }
 
     const outcome = await withUsersLock(async (users) => {
-      if (users.some((user) => user.username.toLowerCase() === username.toLowerCase())) {
-        return { result: { error: 'Username already exists' } };
+      if (findAccountCandidates(users, username).length) {
+        return { result: { error: 'An account with this email already exists' } };
       }
       const hashedPassword = await bcrypt.hash(password, 10);
       const token = generateToken();
-      const resolvedEmail = email || username;
       const isFirstUser = users.length === 0;
       const createdUser = {
         username,
         password: hashedPassword,
         token,
-        displayName: displayName || resolvedEmail.split('@')[0],
-        email: resolvedEmail,
+        displayName: displayName || email.split('@')[0],
+        email,
         theme: 'dark',
-        role: isFirstUser || matchesAdminEmail([resolvedEmail, username], ADMIN_EMAILS) ? 'admin' : 'user'
+        role: isFirstUser || matchesAdminEmail([email, username], ADMIN_EMAILS) ? 'admin' : 'user'
       };
       users.push(createdUser);
       return { result: { user: createdUser } };
@@ -614,18 +660,24 @@ app.post('/api/auth/register', authRateLimit, async (req, res) => {
 });
 
 app.post('/api/auth/login', authRateLimit, async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password are required' });
+  const { username, password } = req.body || {};
+  const identifier = normalizeEmail(username);
+  if (!identifier || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
   }
 
   try {
     const outcome = await withUsersLock(async (users) => {
-      const user = users.find((entry) => entry.username.toLowerCase() === username.toLowerCase());
+      const user = pickLoginRecord(users, identifier);
       if (!user) return { result: { error: 'Invalid credentials' } };
-      const valid = await bcrypt.compare(password, user.password);
+      const hash = getPasswordHash(user);
+      const valid = await bcrypt.compare(password, hash);
       if (!valid) return { result: { error: 'Invalid credentials' } };
       if (user.disabled) return { result: { error: 'This account has been disabled. Contact an administrator.', status: 403 } };
+      // Converge the record: hashes belong in `password`. This self-heals
+      // accounts that were repaired by hand using a `passwordHash` field.
+      user.password = hash;
+      delete user.passwordHash;
       const token = generateToken();
       user.token = token;
       ensureUserProfile(user);
@@ -698,10 +750,12 @@ app.post('/api/auth/password', async (req, res) => {
       const current = users.find((entry) => entry.username === user.username);
       if (!current) return { result: { error: 'User not found', status: 404 } };
       if (currentPassword) {
-        const valid = await bcrypt.compare(currentPassword, current.password);
+        const hash = getPasswordHash(current);
+        const valid = hash ? await bcrypt.compare(currentPassword, hash) : false;
         if (!valid) return { result: { error: 'Current password is incorrect', status: 401 } };
       }
       current.password = await bcrypt.hash(newPassword, 10);
+      delete current.passwordHash;
       return { result: { user: current } };
     });
     if (outcome.error) return res.status(outcome.status || 400).json({ error: outcome.error });
@@ -1106,10 +1160,11 @@ app.get('/api/admin/users', (req, res) => {
   res.json({ users: rows });
 });
 
-/** Finds a user by username, case-insensitively. Returns null if not found. */
+/** Finds a user by username, case-insensitively. Returns null if not found.
+ * Tolerates malformed records with a missing username field. */
 function findUserByUsername(users, username) {
-  const target = String(username || '').toLowerCase();
-  return users.find((u) => u.username.toLowerCase() === target) || null;
+  const target = normalizeEmail(username);
+  return users.find((u) => normalizeEmail(u.username) === target) || null;
 }
 
 const ALLOWED_QUOTA_PRESETS_MB = [5120, 20480, 51200, 102400];
@@ -1391,4 +1446,15 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
 }
 
-export { app, parseAdminEmailList, matchesAdminEmail, resolveUserQuotaSource, resolveUserQuotaMb, countActiveAdmins };
+export {
+  app,
+  parseAdminEmailList,
+  matchesAdminEmail,
+  resolveUserQuotaSource,
+  resolveUserQuotaMb,
+  countActiveAdmins,
+  normalizeEmail,
+  getPasswordHash,
+  findAccountCandidates,
+  pickLoginRecord
+};

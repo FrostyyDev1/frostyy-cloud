@@ -184,29 +184,29 @@
 
           <section class="landing-features">
             <div class="section-head centered">
-              <span class="section-eyebrow">Built for the way you work</span>
-              <h2>Everything you need. Nothing you don&rsquo;t.</h2>
+              <span class="section-eyebrow">What you get</span>
+              <h2>The basics, done properly.</h2>
             </div>
             <div class="feature-grid">
               <div class="card feature-card">
                 <span class="feature-icon"><svg class="icon"><use href="#i-folder"/></svg></span>
-                <h3>Private file storage</h3>
-                <p class="muted">Keep files, projects, and client assets safe with secure uploads, version history, and previews.</p>
+                <h3>Your files, your server</h3>
+                <p class="muted">Upload files, organize them into folders, and preview images and PDFs in the browser. Deleted items sit in trash until you say otherwise.</p>
               </div>
               <div class="card feature-card">
                 <span class="feature-icon"><svg class="icon"><use href="#i-link"/></svg></span>
-                <h3>Share with confidence</h3>
-                <p class="muted">Create private share links with passwords, expirations, and download controls.</p>
+                <h3>Private share links</h3>
+                <p class="muted">Share a file with a link. Set an expiry date if you want one, and revoke any link whenever you like.</p>
               </div>
               <div class="card feature-card">
                 <span class="feature-icon"><svg class="icon"><use href="#i-users"/></svg></span>
                 <h3>Admin controls</h3>
-                <p class="muted">Manage users, monitor activity, and enforce policies &mdash; all from your dashboard.</p>
+                <p class="muted">Invite users with single-use codes, set per-user storage limits, and promote or disable accounts from the admin panel.</p>
               </div>
               <div class="card feature-card">
                 <span class="feature-icon"><svg class="icon"><use href="#i-server"/></svg></span>
                 <h3>Runs on your hardware</h3>
-                <p class="muted">Self-host on any machine you own. Docker, Raspberry Pi, or your favorite home server.</p>
+                <p class="muted">One Docker Compose file. Runs happily on a Raspberry Pi, a NAS, or whatever old machine you have lying around.</p>
               </div>
             </div>
           </section>
@@ -217,7 +217,7 @@
                 <span class="cta-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
                 <div>
                   <h2>Own your cloud. Start in minutes.</h2>
-                  <p>Self-hosted, private, and built to grow with you.</p>
+                  <p>Your files never leave your server. No subscriptions, no trackers.</p>
                 </div>
               </div>
               <div class="cta-actions">
@@ -258,15 +258,15 @@
               <ul class="auth-feature-list">
                 <li>
                   <span class="auth-feature-icon"><svg class="icon"><use href="#i-shield"/></svg></span>
-                  <div><strong>Private storage</strong><span>Your data is always private and protected.</span></div>
+                  <div><strong>Private storage</strong><span>Files live on this server, not someone else's cloud.</span></div>
                 </li>
                 <li>
                   <span class="auth-feature-icon"><svg class="icon"><use href="#i-cloud"/></svg></span>
-                  <div><strong>Access anywhere</strong><span>Reach your files from any device, anytime.</span></div>
+                  <div><strong>Access anywhere</strong><span>Any browser, any device &mdash; no sync client to install.</span></div>
                 </li>
                 <li>
                   <span class="auth-feature-icon"><svg class="icon"><use href="#i-zap"/></svg></span>
-                  <div><strong>Fast &amp; reliable</strong><span>Built for speed, uptime, and peace of mind.</span></div>
+                  <div><strong>Fast &amp; local</strong><span>No third-party services between you and your files.</span></div>
                 </li>
               </ul>
               <div class="auth-orbit" aria-hidden="true">
@@ -331,11 +331,9 @@
               </form>
                 <p id="auth-switch" class="small muted auth-switch-row"></p>
               </div>
-              <p class="auth-foot muted small"><svg class="icon"><use href="#i-lock"/></svg> Your data is encrypted and secure</p>
+              <p class="auth-foot muted small"><svg class="icon"><use href="#i-lock"/></svg> Passwords are stored hashed &middot; your files stay on this server</p>
             </div>
           </div>
-
-          <p class="auth-legal-links small muted">Privacy Policy <span aria-hidden="true">&middot;</span> Terms of Service <span aria-hidden="true">&middot;</span> Contact</p>
         </div>
       </div>
 
@@ -413,10 +411,6 @@
             <div class="topbar-actions">
               <button id="topbar-upload-btn" class="btn" type="button"><svg class="icon"><use href="#i-upload-cloud"/></svg> Upload</button>
               <button id="topbar-new-folder-btn" class="ghost-btn" type="button"><svg class="icon"><use href="#i-folder-plus"/></svg> New Folder</button>
-              <div class="topbar-dropdown">
-                <button id="notif-btn" class="icon-btn" type="button" aria-label="Notifications"><svg class="icon"><use href="#i-activity"/></svg></button>
-                <div id="notif-menu" class="profile-menu hidden"><div class="notif-empty small muted">You're all caught up.</div></div>
-              </div>
               <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle theme"><svg class="icon"><use href="#i-sun"/></svg></button>
               <div class="topbar-dropdown">
                 <button id="topbar-avatar-btn" class="user-chip" type="button" aria-label="Account menu">
@@ -436,7 +430,7 @@
             <div id="message-box"></div>
             <div id="error-box"></div>
           </div>
-          <div id="loading-box" class="loading-state hidden"><span class="spinner" aria-hidden="true"></span> Loading your cloud workspace…</div>
+          <div id="loading-box" class="loading-state hidden"><span class="spinner" aria-hidden="true"></span> Loading…</div>
 
           <!-- Dashboard -->
           <section id="dashboard-page" class="page-section page">
@@ -446,7 +440,7 @@
                 <div class="stat-body">
                   <h3>Storage used</h3>
                   <div id="storage-used" class="value">0 B</div>
-                  <div class="note" id="storage-limit-note">Free tier limit: 20 MB</div>
+                  <div class="note" id="storage-limit-note">&nbsp;</div>
                 </div>
               </div>
               <div class="stat-card card">
@@ -454,7 +448,7 @@
                 <div class="stat-body">
                   <h3>Files</h3>
                   <div id="file-count" class="value">0</div>
-                  <div class="note">Managed securely in your account</div>
+                  <div class="note">Not counting items in trash</div>
                 </div>
               </div>
               <div class="stat-card card">
@@ -478,7 +472,7 @@
             <div class="welcome-panel card">
               <div class="welcome-copy">
                 <h3>Welcome to Frostyy Cloud</h3>
-                <p class="muted">Your workspace is ready — secure uploads, file organization, shared links, and detailed activity tracking, all in one place.</p>
+                <p class="muted">Upload files, organize them into folders, and share them with private links. Everything stays on this server.</p>
                 <div class="row">
                   <button class="btn" data-nav="files"><svg class="icon"><use href="#i-folder"/></svg> View files</button>
                   <button class="ghost-btn" data-nav="settings"><svg class="icon"><use href="#i-sliders"/></svg> Account settings</button>
@@ -487,7 +481,7 @@
               <div class="usage-card">
                 <div class="section-title">
                   <h3><svg class="icon"><use href="#i-drive"/></svg> Storage usage</h3>
-                  <span id="storage-progress-label" class="small muted">0% of free tier used</span>
+                  <span id="storage-progress-label" class="small muted">0% used</span>
                 </div>
                 <div class="progress progress-lg"><span id="storage-bar" style="width:0%"></span></div>
               </div>
@@ -576,8 +570,8 @@
                 </div>
                 <div class="toolbar-group">
                   <select id="sort-select" class="input select">
-                    <option value="date">Name</option>
-                    <option value="name">Date modified</option>
+                    <option value="date">Date modified</option>
+                    <option value="name">Name</option>
                     <option value="size">Size</option>
                     <option value="type">Type</option>
                   </select>
@@ -642,7 +636,7 @@
           <!-- Uploads -->
           <section id="uploads-page" class="page-section page hidden">
             <div class="card">
-              <div class="empty-state"><strong>Drag and drop uploads live on My Files</strong>Head to My Files for drag-and-drop upload, or use the button below.</div>
+              <div class="empty-state"><strong>Uploads happen in My Files</strong>Drag files into My Files (or click Upload in the top bar). Progress shows here while an upload is running.</div>
               <div id="upload-progress-wrap" class="field hidden" style="margin-top: var(--sp-4);">
                 <div class="flex-between">
                   <span class="field-label" id="upload-progress-text">Ready</span>
@@ -671,7 +665,7 @@
                   <ul class="plan-features">
                     <li><svg class="icon check"><use href="#i-check"/></svg> <span id="plan-quota-free">5 GB</span> storage quota</li>
                     <li><svg class="icon check"><use href="#i-check"/></svg> File sharing links</li>
-                    <li><svg class="icon check"><use href="#i-check"/></svg> 1 user account</li>
+                    <li><svg class="icon check"><use href="#i-check"/></svg> Invite-only user accounts</li>
                     <li><svg class="icon check"><use href="#i-check"/></svg> Admin dashboard</li>
                   </ul>
                 </div>
@@ -782,7 +776,7 @@
                 <div class="section-title"><h3><svg class="icon"><use href="#i-snowflake"/></svg> About Frostyy Cloud</h3></div>
                 <p class="muted small">Self-hosted cloud storage, running on your own hardware.</p>
                 <div class="row small muted" style="gap:var(--sp-4);">
-                  <span>Version <strong id="about-version">1.1.0</strong></span>
+                  <span>Version <strong id="about-version">1.2.0</strong></span>
                   <span id="about-registration-mode">Registration: open</span>
                 </div>
               </div>
@@ -792,7 +786,7 @@
           <!-- Support -->
           <section id="support-page" class="page-section page hidden">
             <div class="card support-card">
-              <div class="section-title"><h3><svg class="icon"><use href="#i-lifebuoy"/></svg> Support request</h3><span class="small muted">We usually reply within a day</span></div>
+              <div class="section-title"><h3><svg class="icon"><use href="#i-lifebuoy"/></svg> Support request</h3><span class="small muted">Goes to whoever runs this server</span></div>
               <form id="support-form" class="form-grid">
                 <div class="field">
                   <label class="field-label" for="support-subject">Subject</label>
@@ -819,7 +813,7 @@
           <section id="admin-page" class="page-section page hidden">
             <div class="grid-2">
               <div class="card">
-                <div class="section-title"><h3><svg class="icon"><use href="#i-shield"/></svg> Business overview</h3></div>
+                <div class="section-title"><h3><svg class="icon"><use href="#i-shield"/></svg> Instance overview</h3></div>
                 <div class="stats-grid admin-stats">
                   <div class="stat-card">
                     <span class="stat-icon"><svg class="icon"><use href="#i-users"/></svg></span>
