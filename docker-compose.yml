@@ -1,0 +1,13 @@
+services:
+  cloud-app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    env_file:
+      - .env
+    environment:
+      - PORT=3000

@@ -1,0 +1,20 @@
+{
+  "name": "self-hosted-cloud",
+  "version": "1.1.0",
+  "description": "Frostyy Cloud - a self-hosted personal cloud storage app",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test",
+    "test:concurrency": "node scripts/concurrency-check.mjs",
+    "release-check": "npm test && npm run test:concurrency"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "multer": "^2.2.0"
+  }
+}

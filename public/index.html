@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a1220" />
+    <title>Frostyy Cloud</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!-- Inline SVG icon sprite (Feather-style, stroke-based, self-contained) -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+      <symbol id="i-snowflake" viewBox="0 0 24 24"><path d="M12 2v20M3.3 7l17.4 10M20.7 7 3.3 17M8.5 4.5 12 7l3.5-2.5M8.5 19.5 12 17l3.5 2.5"/></symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></symbol>
+      <symbol id="i-folder-plus" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
+      <symbol id="i-upload-cloud" viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></symbol>
+      <symbol id="i-drive" viewBox="0 0 24 24"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></symbol>
+      <symbol id="i-sliders" viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></symbol>
+      <symbol id="i-lifebuoy" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"/><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/></symbol>
+      <symbol id="i-activity" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+      <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+      <symbol id="i-file" viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></symbol>
+      <symbol id="i-file-text" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></symbol>
+      <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></symbol>
+      <symbol id="i-archive" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5" rx="1"/><line x1="10" y1="12" x2="14" y2="12"/></symbol>
+      <symbol id="i-video" viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></symbol>
+      <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+      <symbol id="i-zap" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+      <symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+      <symbol id="i-user" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+      <symbol id="i-arrow-right" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+      <symbol id="i-arrow-left" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></symbol>
+      <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+      <symbol id="i-server" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+      <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/><circle cx="5" cy="12" r="1.2"/></symbol>
+      <symbol id="i-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+      <symbol id="i-restore" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></symbol>
+      <symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+      <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+    </svg>
+
+    <div id="app">
+      <!-- ============ LANDING ============ -->
+      <div id="landing-screen" class="landing">
+        <header class="landing-nav">
+          <div class="brand">
+            <span class="brand-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
+            <span class="brand-name">Frostyy&nbsp;Cloud</span>
+          </div>
+          <nav class="landing-nav-actions">
+            <button id="login-cta" class="ghost-btn">Log in</button>
+            <button class="btn" data-auth="signup">Get started</button>
+          </nav>
+        </header>
+
+        <section class="hero">
+          <div class="hero-copy">
+            <div class="hero-badge"><svg class="icon"><use href="#i-shield"/></svg><span>Self-hosted &middot; Private &middot; Yours</span></div>
+            <h1>Your files, in a calm, private cloud.</h1>
+            <p class="hero-sub">Frostyy Cloud is polished, self-hosted storage for individuals, freelancers, and small teams. Organize, preview, and share your work from one clean dashboard — on hardware you control.</p>
+            <div class="hero-actions">
+              <button id="signup-cta" class="btn btn-lg">Start free <svg class="icon"><use href="#i-arrow-right"/></svg></button>
+              <button class="ghost-btn btn-lg" data-auth="login">Log in</button>
+            </div>
+            <ul class="hero-list">
+              <li><svg class="icon check"><use href="#i-check"/></svg> Secure uploads with size limits</li>
+              <li><svg class="icon check"><use href="#i-check"/></svg> Private sharing links you can revoke anytime</li>
+              <li><svg class="icon check"><use href="#i-check"/></svg> Runs offline on your own hardware</li>
+            </ul>
+          </div>
+        </section>
+
+        <div class="landing-preview" aria-hidden="true">
+          <div class="landing-preview-head"><svg class="icon"><use href="#i-folder"/></svg> My Files</div>
+          <div class="landing-preview-body">
+            <table class="file-table" style="margin:0">
+              <thead><tr><th>Name</th><th>Size</th><th>Modified</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="col-name"><span class="file-icon"><svg class="icon icon-image"><use href="#i-image"/></svg></span><strong>brand-refresh.png</strong></td>
+                  <td class="muted-cell">2.4 MB</td>
+                  <td class="muted-cell">Today</td>
+                </tr>
+                <tr>
+                  <td class="col-name"><span class="file-icon"><svg class="icon icon-pdf"><use href="#i-file-text"/></svg></span><strong>proposal-v3.pdf</strong></td>
+                  <td class="muted-cell">860 KB</td>
+                  <td class="muted-cell">Yesterday</td>
+                </tr>
+                <tr>
+                  <td class="col-name"><span class="file-icon"><svg class="icon icon-archive"><use href="#i-archive"/></svg></span><strong>client-assets.zip</strong></td>
+                  <td class="muted-cell">48 MB</td>
+                  <td class="muted-cell">Tuesday</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <section class="landing-features">
+          <div class="section-head">
+            <h2>Built for the way you work</h2>
+            <p class="muted">One quiet workspace for every deliverable, asset, and archive.</p>
+          </div>
+          <div class="grid-3">
+            <div class="card feature-card">
+              <span class="feature-icon"><svg class="icon"><use href="#i-image"/></svg></span>
+              <h3>For creators</h3>
+              <p class="muted">Keep design files, project assets, and contracts organized in one secure workspace with instant previews.</p>
+            </div>
+            <div class="card feature-card">
+              <span class="feature-icon"><svg class="icon"><use href="#i-link"/></svg></span>
+              <h3>For freelancers</h3>
+              <p class="muted">Share deliverables with clients through private links and polished previews — revoke access whenever you like.</p>
+            </div>
+            <div class="card feature-card">
+              <span class="feature-icon"><svg class="icon"><use href="#i-users"/></svg></span>
+              <h3>For small teams</h3>
+              <p class="muted">Use the admin and activity views to keep an eye on usage as your self-hosted cloud grows with you.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="landing-cta">
+          <div class="cta-card">
+            <div>
+              <h2>Own your cloud tonight.</h2>
+              <p>Free to start. No trackers, no lock-in — just your files on your server.</p>
+            </div>
+            <button class="btn btn-lg" data-auth="signup">Create your account <svg class="icon"><use href="#i-arrow-right"/></svg></button>
+          </div>
+        </section>
+
+        <footer class="landing-footer">
+          <div class="brand brand-sm">
+            <span class="brand-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
+            <span class="brand-name">Frostyy&nbsp;Cloud</span>
+          </div>
+          <span class="muted small">Self-hosted cloud storage &middot; Built for modern homelabs</span>
+        </footer>
+      </div>
+
+      <!-- ============ AUTH ============ -->
+      <div id="auth-screen" class="auth-shell hidden">
+        <div class="auth-split">
+          <div class="auth-brand-panel">
+            <div class="brand auth-brand">
+              <span class="brand-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
+              <span class="brand-name">Frostyy&nbsp;Cloud</span>
+            </div>
+            <h1 class="auth-headline">Your private cloud,<br /><span class="text-accent">under your control.</span></h1>
+            <p class="auth-subtext">Secure, self-hosted storage for everything that matters.</p>
+            <ul class="auth-feature-list">
+              <li>
+                <span class="auth-feature-icon"><svg class="icon"><use href="#i-shield"/></svg></span>
+                <div><strong>Private storage</strong><span>Your data is always private and protected.</span></div>
+              </li>
+              <li>
+                <span class="auth-feature-icon"><svg class="icon"><use href="#i-cloud"/></svg></span>
+                <div><strong>Access anywhere</strong><span>Reach your files from any device, anytime.</span></div>
+              </li>
+              <li>
+                <span class="auth-feature-icon"><svg class="icon"><use href="#i-zap"/></svg></span>
+                <div><strong>Fast &amp; reliable</strong><span>Built for speed, uptime, and peace of mind.</span></div>
+              </li>
+            </ul>
+            <div class="auth-illustration" aria-hidden="true">
+              <div class="auth-illustration-tile tile-cloud"><svg class="icon"><use href="#i-cloud"/></svg></div>
+              <div class="auth-illustration-tile tile-server"><svg class="icon"><use href="#i-server"/></svg></div>
+              <div class="auth-illustration-tile tile-lock"><svg class="icon"><use href="#i-lock"/></svg></div>
+              <div class="auth-illustration-tile tile-folder"><svg class="icon"><use href="#i-folder"/></svg></div>
+            </div>
+          </div>
+
+          <div class="auth-card-panel">
+            <button id="auth-back" class="auth-back" type="button"><svg class="icon"><use href="#i-arrow-left"/></svg> Back to home</button>
+            <div class="auth-card">
+              <div class="auth-toggle" role="tablist">
+                <button type="button" class="auth-toggle-btn active" data-auth-mode="login" role="tab">Log in</button>
+                <button type="button" class="auth-toggle-btn" data-auth-mode="signup" role="tab">Sign up</button>
+              </div>
+              <h2 id="auth-title">Welcome back</h2>
+              <p id="auth-subtitle" class="muted small">Log in to access your Frostyy Cloud account.</p>
+              <p id="auth-message" class="muted"></p>
+              <p id="auth-error" class="error"></p>
+              <p id="registration-disabled-note" class="small error hidden">New signups are currently disabled on this instance.</p>
+              <form id="auth-form" data-mode="login" autocomplete="off">
+                <div class="form-grid">
+                  <div class="field">
+                    <label class="field-label" for="auth-email">Email address</label>
+                    <div class="input-icon-wrap">
+                      <svg class="icon input-icon" aria-hidden="true"><use href="#i-mail"/></svg>
+                      <input id="auth-email" name="frostyy_email" class="input has-icon" type="email" placeholder="Enter your email address" required autocomplete="email" />
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="auth-password">Password</label>
+                    <div class="input-icon-wrap">
+                      <svg class="icon input-icon" aria-hidden="true"><use href="#i-lock"/></svg>
+                      <input id="auth-password" name="frostyy_password" type="password" class="input has-icon has-icon-end" placeholder="Enter your password" required autocomplete="current-password" />
+                      <button type="button" class="input-icon-btn" id="auth-password-toggle" aria-label="Show password"><svg class="icon"><use href="#i-eye"/></svg></button>
+                    </div>
+                    <span class="field-hint" id="auth-password-hint">At least 8 characters</span>
+                  </div>
+                  <div class="field hidden" id="auth-confirm-field">
+                    <label class="field-label" for="auth-confirm-password">Confirm password</label>
+                    <div class="input-icon-wrap">
+                      <svg class="icon input-icon" aria-hidden="true"><use href="#i-lock"/></svg>
+                      <input id="auth-confirm-password" name="frostyy_confirm_password" type="password" class="input has-icon" placeholder="Re-enter your password" autocomplete="new-password" />
+                    </div>
+                    <span class="field-hint hidden" id="auth-confirm-hint">Passwords do not match</span>
+                  </div>
+                  <div class="field hidden" id="auth-invite-field">
+                    <label class="field-label" for="auth-invite-code">Invite code</label>
+                    <input id="auth-invite-code" name="frostyy_invite_code" class="input" placeholder="Enter your invite code" autocomplete="off" />
+                  </div>
+                  <button id="auth-submit" class="btn btn-block" type="submit">Continue <svg class="icon"><use href="#i-arrow-right"/></svg></button>
+                </div>
+              </form>
+              <p id="auth-switch" class="small muted auth-switch-row"></p>
+            </div>
+            <p class="auth-foot muted small"><svg class="icon"><use href="#i-lock"/></svg> Your data is encrypted and secure</p>
+            <p class="auth-legal-links small muted">Privacy Policy <span aria-hidden="true">&middot;</span> Terms of Service <span aria-hidden="true">&middot;</span> Contact</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="maintenance-banner" class="maintenance-banner hidden">
+        <svg class="icon"><use href="#i-shield"/></svg>
+        <span>Frostyy Cloud is currently in maintenance mode. Some features may be unavailable.</span>
+      </div>
+
+      <!-- ============ APP SHELL ============ -->
+      <div id="dashboard-shell" class="app-shell hidden">
+        <div id="sidebar-overlay" class="sidebar-overlay" aria-hidden="true"></div>
+
+        <aside class="sidebar">
+          <div class="brand sidebar-brand">
+            <span class="brand-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
+            <span class="brand-name">Frostyy&nbsp;Cloud</span>
+          </div>
+
+          <div class="sidebar-storage">
+            <div class="sidebar-storage-label">Storage</div>
+            <div class="sidebar-storage-value"><span id="sidebar-storage-used">0 GB</span> of <span id="sidebar-storage-total">5 GB</span> used</div>
+            <div class="progress"><span id="sidebar-storage-bar" style="width:0%"></span></div>
+          </div>
+
+          <nav class="nav-links">
+            <div class="nav-label">Workspace</div>
+            <button class="nav-item active" data-nav="dashboard"><svg class="icon"><use href="#i-grid"/></svg><span>Dashboard</span></button>
+            <button class="nav-item" data-nav="files"><svg class="icon"><use href="#i-folder"/></svg><span>My Files</span></button>
+            <button class="nav-item" data-nav="shared"><svg class="icon"><use href="#i-link"/></svg><span>Shared</span></button>
+            <button class="nav-item" data-nav="recent"><svg class="icon"><use href="#i-clock"/></svg><span>Recent</span></button>
+            <button class="nav-item" data-nav="favorites"><svg class="icon"><use href="#i-star"/></svg><span>Favorites</span></button>
+            <button class="nav-item" data-nav="trash"><svg class="icon"><use href="#i-trash"/></svg><span>Trash</span></button>
+            <div class="nav-label">Tools</div>
+            <button class="nav-item" data-nav="uploads"><svg class="icon"><use href="#i-upload"/></svg><span>Uploads</span></button>
+            <button class="nav-item" data-nav="storage"><svg class="icon"><use href="#i-drive"/></svg><span>Storage</span></button>
+            <div class="nav-label">Account</div>
+            <button class="nav-item" data-nav="settings"><svg class="icon"><use href="#i-sliders"/></svg><span>Settings</span></button>
+            <button class="nav-item" data-nav="support"><svg class="icon"><use href="#i-lifebuoy"/></svg><span>Support</span></button>
+            <button class="nav-item" data-nav="activity"><svg class="icon"><use href="#i-activity"/></svg><span>Activity</span></button>
+            <div class="nav-label" id="admin-nav-label">Admin</div>
+            <button class="nav-item" data-nav="admin"><svg class="icon"><use href="#i-shield"/></svg><span>Admin Dashboard</span></button>
+          </nav>
+
+          <div class="sidebar-footer">
+            <button id="profile-menu-btn" class="profile-chip" type="button">
+              <span class="user-avatar" id="sidebar-user-avatar" aria-hidden="true">U</span>
+              <span class="profile-chip-text">
+                <strong id="sidebar-user-name">User</strong>
+                <span id="sidebar-user-email" class="small muted"></span>
+              </span>
+              <svg class="icon chevron"><use href="#i-arrow-right"/></svg>
+            </button>
+            <div id="profile-menu" class="profile-menu hidden">
+              <button class="profile-menu-item" data-nav="settings"><svg class="icon"><use href="#i-sliders"/></svg> Settings</button>
+              <button id="logout-nav" class="profile-menu-item danger"><svg class="icon"><use href="#i-logout"/></svg> Log out</button>
+            </div>
+          </div>
+        </aside>
+
+        <main id="main-content" class="main-panel">
+          <header class="topbar">
+            <div class="topbar-left">
+              <button id="sidebar-toggle" class="icon-btn sidebar-toggle" type="button" aria-label="Toggle navigation"><svg class="icon"><use href="#i-menu"/></svg></button>
+              <div class="topbar-heading">
+                <div class="topbar-eyebrow">Frostyy Cloud</div>
+                <h2 id="topbar-title">Dashboard</h2>
+              </div>
+            </div>
+            <div class="topbar-search">
+              <svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>
+              <input id="global-search-input" class="topbar-search-input" placeholder="Search files and folders…" autocomplete="off" />
+              <span class="kbd-hint">Ctrl K</span>
+              <div id="search-results" class="search-results hidden"></div>
+            </div>
+            <div class="topbar-actions">
+              <button id="topbar-upload-btn" class="btn" type="button"><svg class="icon"><use href="#i-upload-cloud"/></svg> Upload</button>
+              <button id="topbar-new-folder-btn" class="ghost-btn" type="button"><svg class="icon"><use href="#i-folder-plus"/></svg> New Folder</button>
+              <div class="topbar-dropdown">
+                <button id="notif-btn" class="icon-btn" type="button" aria-label="Notifications"><svg class="icon"><use href="#i-activity"/></svg></button>
+                <div id="notif-menu" class="profile-menu hidden"><div class="notif-empty small muted">You're all caught up.</div></div>
+              </div>
+              <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle theme"><svg class="icon"><use href="#i-sun"/></svg></button>
+              <div class="topbar-dropdown">
+                <button id="topbar-avatar-btn" class="user-chip" type="button" aria-label="Account menu">
+                  <span class="user-avatar" id="topbar-user-avatar" aria-hidden="true">U</span>
+                  <span id="user-name">User</span>
+                  <svg class="icon chevron"><use href="#i-arrow-right"/></svg>
+                </button>
+                <div id="topbar-profile-menu" class="profile-menu hidden">
+                  <button class="profile-menu-item" data-nav="settings"><svg class="icon"><use href="#i-sliders"/></svg> Settings</button>
+                  <button id="logout-topbar" class="profile-menu-item danger"><svg class="icon"><use href="#i-logout"/></svg> Log out</button>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <div class="toast-region">
+            <div id="message-box"></div>
+            <div id="error-box"></div>
+          </div>
+          <div id="loading-box" class="loading-state hidden"><span class="spinner" aria-hidden="true"></span> Loading your cloud workspace…</div>
+
+          <!-- Dashboard -->
+          <section id="dashboard-page" class="page-section page">
+            <div class="stats-grid">
+              <div class="stat-card card">
+                <span class="stat-icon"><svg class="icon"><use href="#i-drive"/></svg></span>
+                <div class="stat-body">
+                  <h3>Storage used</h3>
+                  <div id="storage-used" class="value">0 B</div>
+                  <div class="note" id="storage-limit-note">Free tier limit: 20 MB</div>
+                </div>
+              </div>
+              <div class="stat-card card">
+                <span class="stat-icon"><svg class="icon"><use href="#i-file"/></svg></span>
+                <div class="stat-body">
+                  <h3>Files</h3>
+                  <div id="file-count" class="value">0</div>
+                  <div class="note">Managed securely in your account</div>
+                </div>
+              </div>
+              <div class="stat-card card">
+                <span class="stat-icon"><svg class="icon"><use href="#i-link"/></svg></span>
+                <div class="stat-body">
+                  <h3>Shared files</h3>
+                  <div id="shared-count" class="value">0</div>
+                  <div class="note">Active share links</div>
+                </div>
+              </div>
+              <div class="stat-card card">
+                <span class="stat-icon"><svg class="icon"><use href="#i-trash"/></svg></span>
+                <div class="stat-body">
+                  <h3>Trash</h3>
+                  <div id="trash-count" class="value">0</div>
+                  <div class="note">Auto-purged after <span id="trash-retention-note">30</span> days</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="welcome-panel card">
+              <div class="welcome-copy">
+                <h3>Welcome to Frostyy Cloud</h3>
+                <p class="muted">Your workspace is ready — secure uploads, file organization, shared links, and detailed activity tracking, all in one place.</p>
+                <div class="row">
+                  <button class="btn" data-nav="files"><svg class="icon"><use href="#i-folder"/></svg> View files</button>
+                  <button class="ghost-btn" data-nav="settings"><svg class="icon"><use href="#i-sliders"/></svg> Account settings</button>
+                </div>
+              </div>
+              <div class="usage-card">
+                <div class="section-title">
+                  <h3><svg class="icon"><use href="#i-drive"/></svg> Storage usage</h3>
+                  <span id="storage-progress-label" class="small muted">0% of free tier used</span>
+                </div>
+                <div class="progress progress-lg"><span id="storage-bar" style="width:0%"></span></div>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="card">
+                <div class="section-title"><h3>Quick actions</h3></div>
+                <div class="quick-grid">
+                  <button id="upload-btn" class="action-tile" type="button">
+                    <span class="action-icon"><svg class="icon"><use href="#i-upload-cloud"/></svg></span>
+                    <span>Upload file</span>
+                  </button>
+                  <button id="create-folder-btn" class="action-tile" type="button">
+                    <span class="action-icon"><svg class="icon"><use href="#i-folder-plus"/></svg></span>
+                    <span>New folder</span>
+                  </button>
+                  <button class="action-tile" data-nav="files" type="button">
+                    <span class="action-icon"><svg class="icon"><use href="#i-folder"/></svg></span>
+                    <span>View files</span>
+                  </button>
+                  <button class="action-tile" data-nav="settings" type="button">
+                    <span class="action-icon"><svg class="icon"><use href="#i-sliders"/></svg></span>
+                    <span>Settings</span>
+                  </button>
+                </div>
+                <input id="upload-input" type="file" class="hidden" multiple />
+              </div>
+              <div class="card">
+                <div class="section-title"><h3>Recent uploads</h3><button class="pill-btn" data-nav="files">See all</button></div>
+                <div id="recent-uploads" class="recent-list row"></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="section-title"><h3>Recent activity</h3><button class="pill-btn" data-nav="activity">See all</button></div>
+              <div id="dashboard-activity" class="activity-feed"></div>
+            </div>
+          </section>
+
+          <!-- Files -->
+          <section id="files-page" class="page-section page hidden">
+            <div class="files-header">
+              <h2>My Files</h2>
+              <div id="breadcrumb" class="breadcrumb">Home</div>
+            </div>
+
+            <div class="stats-grid files-stats-row">
+              <div class="stat-card card">
+                <span class="stat-icon tint-primary"><svg class="icon"><use href="#i-file"/></svg></span>
+                <div class="stat-body"><h3>Total Files</h3><div id="files-stat-count" class="value">0</div></div>
+              </div>
+              <div class="stat-card card">
+                <span class="stat-icon tint-success"><svg class="icon"><use href="#i-drive"/></svg></span>
+                <div class="stat-body"><h3>Storage Used</h3><div id="files-stat-storage" class="value">0 B</div></div>
+              </div>
+              <div class="stat-card card">
+                <span class="stat-icon tint-violet"><svg class="icon"><use href="#i-users"/></svg></span>
+                <div class="stat-body"><h3>Shared Files</h3><div id="files-stat-shared" class="value">0</div></div>
+              </div>
+              <div class="stat-card card">
+                <span class="stat-icon tint-danger"><svg class="icon"><use href="#i-trash"/></svg></span>
+                <div class="stat-body"><h3>In Trash</h3><div id="files-stat-trash" class="value">0</div></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="toolbar">
+                <div id="bulk-actions" class="selection-toolbar hidden">
+                  <label class="select-check"><input type="checkbox" id="select-all-checkbox" /></label>
+                  <span id="selection-count" class="small">0 selected</span>
+                  <div class="row">
+                    <button id="bulk-share" class="ghost-btn" type="button" title="Copy share link"><svg class="icon"><use href="#i-users"/></svg> Share</button>
+                    <button id="bulk-download" class="ghost-btn" type="button" title="Download"><svg class="icon"><use href="#i-download"/></svg> Download</button>
+                    <button id="bulk-move" class="ghost-btn" type="button" title="Move"><svg class="icon"><use href="#i-folder-plus"/></svg> Move</button>
+                    <button id="bulk-delete" class="ghost-btn danger" type="button" title="Delete"><svg class="icon"><use href="#i-trash"/></svg> Delete</button>
+                  </div>
+                  <button id="bulk-clear" class="auth-inline-link small" type="button">Clear selection <svg class="icon"><use href="#i-x"/></svg></button>
+                </div>
+                <div id="default-toolbar" class="toolbar-group">
+                  <select id="filter-select" class="input select">
+                    <option value="all">All items</option>
+                    <option value="file">Files</option>
+                    <option value="folder">Folders</option>
+                  </select>
+                </div>
+                <div class="toolbar-group">
+                  <select id="sort-select" class="input select">
+                    <option value="date">Name</option>
+                    <option value="name">Date modified</option>
+                    <option value="size">Size</option>
+                    <option value="type">Type</option>
+                  </select>
+                  <button id="view-toggle-list" class="icon-btn" type="button" title="List view"><svg class="icon"><use href="#i-layout"/></svg></button>
+                  <button id="view-toggle-grid" class="icon-btn" type="button" title="Grid view"><svg class="icon"><use href="#i-grid"/></svg></button>
+                </div>
+              </div>
+
+              <div id="dropzone" class="dropzone dropzone-inline">
+                <span class="dropzone-icon"><svg class="icon"><use href="#i-upload-cloud"/></svg></span>
+                <div class="dropzone-copy">
+                  <strong>Drag and drop files here to upload</strong>
+                  <span class="muted small">or <span class="link-text">click to browse files</span></span>
+                </div>
+                <button class="ghost-btn dropzone-select-btn" type="button">Select Files</button>
+              </div>
+
+              <div id="file-list" class="file-grid"></div>
+              <div id="pagination" class="pagination"></div>
+            </div>
+          </section>
+
+          <!-- Recent -->
+          <section id="recent-page" class="page-section page hidden">
+            <div class="card">
+              <div class="section-title"><h3><svg class="icon"><use href="#i-clock"/></svg> Recent files</h3><span class="small muted">Your most recently uploaded files</span></div>
+              <div id="recent-file-list" class="file-grid"></div>
+            </div>
+          </section>
+
+          <!-- Favorites -->
+          <section id="favorites-page" class="page-section page hidden">
+            <div class="card">
+              <div class="section-title"><h3><svg class="icon"><use href="#i-star"/></svg> Favorites</h3><span class="small muted">Files and folders you've starred</span></div>
+              <div id="favorites-file-list" class="file-grid"></div>
+            </div>
+          </section>
+
+          <!-- Trash -->
+          <section id="trash-page" class="page-section page hidden">
+            <div class="card">
+              <div class="section-title">
+                <h3><svg class="icon"><use href="#i-trash"/></svg> Trash</h3>
+                <button id="empty-trash-btn" class="ghost-btn danger" type="button">Empty trash</button>
+              </div>
+              <p class="small muted">Items in trash can be restored or permanently deleted.</p>
+              <div id="trash-file-list" class="file-grid"></div>
+            </div>
+          </section>
+
+          <!-- Shared -->
+          <section id="shared-page" class="page-section page hidden">
+            <div class="card">
+              <div class="section-title">
+                <h3><svg class="icon"><use href="#i-link"/></svg> Shared files</h3>
+                <span class="small muted">Anyone with a link can download until you disable it</span>
+              </div>
+              <div id="shared-list" class="file-grid"></div>
+            </div>
+          </section>
+
+          <!-- Uploads -->
+          <section id="uploads-page" class="page-section page hidden">
+            <div class="card">
+              <div class="empty-state"><strong>Drag and drop uploads live on My Files</strong>Head to My Files for drag-and-drop upload, or use the button below.</div>
+              <div id="upload-progress-wrap" class="field hidden" style="margin-top: var(--sp-4);">
+                <div class="flex-between">
+                  <span class="field-label" id="upload-progress-text">Ready</span>
+                </div>
+                <div class="progress"><span id="upload-progress" style="width:0%"></span></div>
+              </div>
+              <div class="row upload-foot">
+                <button class="btn" data-nav="files"><svg class="icon"><use href="#i-folder"/></svg> Open My Files</button>
+                <span class="small muted">Files land in the folder you last opened.</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Storage -->
+          <section id="storage-page" class="page-section page hidden">
+            <div class="card">
+              <div class="section-title">
+                <h3>Plans &amp; billing</h3>
+                <span class="badge">Billing not connected &middot; coming soon</span>
+              </div>
+              <p class="muted small" style="margin-top:-8px;">This self-hosted instance runs on the Free plan. Pro and Business are shown for reference — no payment processing is wired up yet.</p>
+              <div class="grid-3 plan-grid">
+                <div class="plan-card current">
+                  <div class="plan-head"><strong>Free / Self-hosted</strong><span class="plan-flag">Current plan</span></div>
+                  <p class="muted">Your own hardware, your own rules.</p>
+                  <ul class="plan-features">
+                    <li><svg class="icon check"><use href="#i-check"/></svg> <span id="plan-quota-free">5 GB</span> storage quota</li>
+                    <li><svg class="icon check"><use href="#i-check"/></svg> File sharing links</li>
+                    <li><svg class="icon check"><use href="#i-check"/></svg> 1 user account</li>
+                    <li><svg class="icon check"><use href="#i-check"/></svg> Admin dashboard</li>
+                  </ul>
+                </div>
+                <div class="plan-card">
+                  <div class="plan-head"><strong>Pro</strong><span class="badge">Not connected</span></div>
+                  <p class="muted">For freelancers with growing archives.</p>
+                  <ul class="plan-features">
+                    <li><svg class="icon check"><use href="#i-check"/></svg> Larger storage quota</li>
+                    <li><svg class="icon check"><use href="#i-check"/></svg> File sharing links</li>
+                    <li><svg class="icon check"><use href="#i-check"/></svg> Priority support</li>
+                    <li><svg class="icon check"><use href="#i-check"/></svg> Admin dashboard</li>
+                  </ul>
+                  <button class="ghost-btn btn-block" type="button" disabled>Coming soon</button>
+                </div>
+                <div class="plan-card">
+                  <div class="plan-head"><strong>Business</strong><span class="badge">Not connected</span></div>
+                  <p class="muted">For small teams sharing one instance.</p>
+                  <ul class="plan-features">
+                    <li><svg class="icon check"><use href="#i-check"/></svg> Team user accounts</li>
+                    <li><svg class="icon check"><use href="#i-check"/></svg> File sharing links</li>
+                    <li><svg class="icon check"><use href="#i-check"/></svg> Priority support</li>
+                    <li><svg class="icon check"><use href="#i-check"/></svg> Advanced admin tools</li>
+                  </ul>
+                  <button class="ghost-btn btn-block" type="button" disabled>Coming soon</button>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="section-title"><h3>Usage overview</h3></div>
+              <div class="usage-card" style="border:none;padding:0;">
+                <div class="section-title">
+                  <h3><svg class="icon"><use href="#i-drive"/></svg> Storage usage</h3>
+                  <span id="storage-page-progress-label" class="small muted">0% used</span>
+                </div>
+                <div class="progress progress-lg"><span id="storage-page-bar" style="width:0%"></span></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Settings -->
+          <section id="settings-page" class="page-section page hidden">
+            <div class="grid-2">
+              <div class="card">
+                <div class="section-title">
+                  <h3><svg class="icon"><use href="#i-user"/></svg> Profile</h3>
+                  <span id="settings-admin-badge" class="badge hidden"><svg class="icon"><use href="#i-shield"/></svg> Admin</span>
+                </div>
+                <form id="settings-form" class="form-grid">
+                  <div class="field">
+                    <label class="field-label" for="display-name">Display name</label>
+                    <input id="display-name" class="input" placeholder="Display name" autocomplete="name" />
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="email">Email</label>
+                    <input id="email" class="input" placeholder="you@example.com" autocomplete="email" />
+                  </div>
+                  <button class="btn" type="submit">Save profile</button>
+                </form>
+              </div>
+              <div class="card">
+                <div class="section-title"><h3><svg class="icon"><use href="#i-lock"/></svg> Security</h3></div>
+                <form id="password-form" class="form-grid">
+                  <div class="field">
+                    <label class="field-label" for="current-password">Current password</label>
+                    <input id="current-password" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="new-password">New password</label>
+                    <input id="new-password" class="input" type="password" placeholder="••••••••" autocomplete="new-password" />
+                  </div>
+                  <button class="btn" type="submit">Update password</button>
+                </form>
+                <div class="danger-zone">
+                  <div class="small muted">Danger zone</div>
+                  <button id="delete-account-btn" class="ghost-btn danger" type="button"><svg class="icon"><use href="#i-trash"/></svg> Request account deletion</button>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="section-title"><h3><svg class="icon"><use href="#i-sun"/></svg> Appearance</h3></div>
+                <div class="theme-picker" id="theme-picker">
+                  <button class="theme-option" data-theme-choice="light" type="button"><svg class="icon"><use href="#i-sun"/></svg> Light</button>
+                  <button class="theme-option" data-theme-choice="dark" type="button"><svg class="icon"><use href="#i-moon"/></svg> Dark</button>
+                  <button class="theme-option" data-theme-choice="system" type="button"><svg class="icon"><use href="#i-drive"/></svg> System</button>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="section-title"><h3><svg class="icon"><use href="#i-drive"/></svg> Storage</h3></div>
+                <div class="stats-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));">
+                  <div class="stat-card">
+                    <div class="stat-body"><h3>Used</h3><div id="settings-storage-used" class="value">0 B</div></div>
+                  </div>
+                  <div class="stat-card">
+                    <div class="stat-body"><h3>Files</h3><div id="settings-file-count" class="value">0</div></div>
+                  </div>
+                </div>
+                <div class="progress progress-lg" style="margin-top:var(--sp-4);"><span id="settings-storage-bar" style="width:0%"></span></div>
+                <div class="small muted" id="settings-storage-label" style="margin-top:var(--sp-2);">0% of quota used</div>
+              </div>
+
+              <div class="card">
+                <div class="section-title"><h3><svg class="icon"><use href="#i-zap"/></svg> Plan</h3><button class="pill-btn" data-nav="storage">Manage</button></div>
+                <p class="muted small">Current plan: <strong id="settings-plan-name">Free / Self-hosted</strong>. Pro and Business plans are placeholders — billing is not connected yet.</p>
+              </div>
+
+              <div class="card">
+                <div class="section-title"><h3><svg class="icon"><use href="#i-snowflake"/></svg> About Frostyy Cloud</h3></div>
+                <p class="muted small">Self-hosted cloud storage, running on your own hardware.</p>
+                <div class="row small muted" style="gap:var(--sp-4);">
+                  <span>Version <strong id="about-version">1.1.0</strong></span>
+                  <span id="about-registration-mode">Registration: open</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Support -->
+          <section id="support-page" class="page-section page hidden">
+            <div class="card support-card">
+              <div class="section-title"><h3><svg class="icon"><use href="#i-lifebuoy"/></svg> Support request</h3><span class="small muted">We usually reply within a day</span></div>
+              <form id="support-form" class="form-grid">
+                <div class="field">
+                  <label class="field-label" for="support-subject">Subject</label>
+                  <input id="support-subject" class="input" placeholder="What do you need help with?" required />
+                </div>
+                <div class="field">
+                  <label class="field-label" for="support-message">Message</label>
+                  <textarea id="support-message" class="textarea" rows="5" placeholder="Describe the issue or question in as much detail as you can" required></textarea>
+                </div>
+                <button class="btn" type="submit">Send request</button>
+              </form>
+            </div>
+          </section>
+
+          <!-- Activity -->
+          <section id="activity-page" class="page-section page hidden">
+            <div class="card">
+              <div class="section-title"><h3><svg class="icon"><use href="#i-activity"/></svg> Activity log</h3><span class="small muted">Everything that happened in your workspace</span></div>
+              <div id="activity-list" class="activity-feed"></div>
+            </div>
+          </section>
+
+          <!-- Admin -->
+          <section id="admin-page" class="page-section page hidden">
+            <div class="grid-2">
+              <div class="card">
+                <div class="section-title"><h3><svg class="icon"><use href="#i-shield"/></svg> Business overview</h3></div>
+                <div class="stats-grid admin-stats">
+                  <div class="stat-card">
+                    <span class="stat-icon"><svg class="icon"><use href="#i-users"/></svg></span>
+                    <div class="stat-body"><h3>Users</h3><div id="admin-users" class="value">0</div></div>
+                  </div>
+                  <div class="stat-card">
+                    <span class="stat-icon"><svg class="icon"><use href="#i-file"/></svg></span>
+                    <div class="stat-body"><h3>Files</h3><div id="admin-files" class="value">0</div></div>
+                  </div>
+                  <div class="stat-card">
+                    <span class="stat-icon"><svg class="icon"><use href="#i-drive"/></svg></span>
+                    <div class="stat-body"><h3>Storage</h3><div id="admin-storage" class="value">0 B</div></div>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="section-title"><h3><svg class="icon"><use href="#i-clock"/></svg> Recent activity</h3></div>
+                <div id="admin-activity" class="row"></div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="section-title"><h3><svg class="icon"><use href="#i-users"/></svg> Users</h3><span class="small muted">Per-account breakdown &middot; read-only</span></div>
+              <div class="file-table-wrap">
+                <table class="file-table">
+                  <thead><tr><th>User</th><th>Role</th><th>Files</th><th>Storage used</th><th>Last activity</th><th></th></tr></thead>
+                  <tbody id="admin-users-table"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <!-- ============ MODALS ============ -->
+      <div id="modal-backdrop" class="modal-backdrop hidden">
+        <div class="modal">
+          <div class="modal-header"><h3 id="modal-title">Confirm</h3><button id="modal-close" class="icon-btn" type="button" aria-label="Close"><svg class="icon"><use href="#i-x"/></svg></button></div>
+          <p id="modal-body" class="muted"></p>
+          <div class="modal-footer"><button id="modal-confirm" class="btn" type="button">Confirm</button></div>
+        </div>
+      </div>
+
+      <div id="preview-modal" class="modal-backdrop hidden">
+        <div class="modal modal-lg">
+          <div class="modal-header"><h3>Preview</h3><button class="icon-btn" type="button" aria-label="Close" onclick="document.getElementById('preview-modal').classList.add('hidden')"><svg class="icon"><use href="#i-x"/></svg></button></div>
+          <div id="preview-frame" class="preview-frame"></div>
+        </div>
+      </div>
+
+      <div id="move-modal" class="modal-backdrop hidden">
+        <div class="modal">
+          <div class="modal-header"><h3>Move to…</h3><button id="move-modal-close" class="icon-btn" type="button" aria-label="Close"><svg class="icon"><use href="#i-x"/></svg></button></div>
+          <p class="muted small" id="move-modal-subtitle">Choose a destination folder.</p>
+          <div id="move-folder-list" class="move-folder-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

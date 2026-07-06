@@ -1,0 +1,1678 @@
+const state = {
+  user: null,
+  view: 'landing',
+  files: [],
+  selectedIds: new Set(),
+  currentFolder: null,
+  theme: 'dark',
+  modal: null,
+  loading: false,
+  message: '',
+  error: '',
+  showGrid: true,
+  sortBy: 'date',
+  filterType: 'all',
+  search: '',
+  uploadProgress: 0,
+  dragActive: false,
+  currentPage: 1,
+  pageSize: 12,
+  maxFileSizeMb: 20,
+  storageQuotaMb: 5120,
+  themePreference: 'dark'
+};
+
+const els = {};
+
+function init() {
+  bindElements();
+  bindEvents();
+  bindGlobalSearch();
+  applyTheme();
+  loadAppConfig();
+  loadUser();
+  updateViewToggleButtons();
+  render();
+  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (state.themePreference === 'system') applyTheme();
+  });
+}
+
+function getSystemTheme() {
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme() {
+  state.theme = state.themePreference === 'system' ? getSystemTheme() : state.themePreference;
+  document.body.dataset.theme = state.theme;
+  const themeIcon = document.getElementById('theme-toggle');
+  if (themeIcon) themeIcon.innerHTML = svgIcon(state.theme === 'dark' ? 'i-sun' : 'i-moon');
+  document.querySelectorAll('.theme-option').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.themeChoice === state.themePreference);
+  });
+}
+
+function setThemePreference(pref) {
+  state.themePreference = pref;
+  applyTheme();
+  if (state.user) {
+    fetch('/api/auth/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme: pref }) });
+  }
+}
+
+function updateViewToggleButtons() {
+  els.viewToggleGrid?.classList.toggle('active', state.showGrid);
+  els.viewToggleList?.classList.toggle('active', !state.showGrid);
+}
+
+function bindElements() {
+  els.app = document.getElementById('app');
+  els.authScreen = document.getElementById('auth-screen');
+  els.landingScreen = document.getElementById('landing-screen');
+  els.dashboardShell = document.getElementById('dashboard-shell');
+  els.mainContent = document.getElementById('main-content');
+  els.viewTitle = document.getElementById('topbar-title');
+  els.topbarTitle = document.getElementById('topbar-title');
+  els.userName = document.getElementById('user-name');
+  els.authForm = document.getElementById('auth-form');
+  els.authTitle = document.getElementById('auth-title');
+  els.authSwitch = document.getElementById('auth-switch');
+  els.authMessage = document.getElementById('auth-message');
+  els.authError = document.getElementById('auth-error');
+  els.authEmail = document.getElementById('auth-email');
+  els.authPassword = document.getElementById('auth-password');
+  els.authConfirmPassword = document.getElementById('auth-confirm-password');
+  els.authSubmit = document.getElementById('auth-submit');
+  els.createFolderBtn = document.getElementById('create-folder-btn');
+  els.uploadBtn = document.getElementById('upload-btn');
+  els.uploadInput = document.getElementById('upload-input');
+  els.fileList = document.getElementById('file-list');
+  els.dashboardPage = document.getElementById('dashboard-page');
+  els.filesPage = document.getElementById('files-page');
+  els.sharedPage = document.getElementById('shared-page');
+  els.uploadsPage = document.getElementById('uploads-page');
+  els.storagePage = document.getElementById('storage-page');
+  els.settingsPage = document.getElementById('settings-page');
+  els.supportPage = document.getElementById('support-page');
+  els.activityPage = document.getElementById('activity-page');
+  els.adminPage = document.getElementById('admin-page');
+  els.globalSearchInput = document.getElementById('global-search-input');
+  els.sortSelect = document.getElementById('sort-select');
+  els.filterSelect = document.getElementById('filter-select');
+  els.messageBox = document.getElementById('message-box');
+  els.errorBox = document.getElementById('error-box');
+  els.loadingBox = document.getElementById('loading-box');
+  els.recentUploads = document.getElementById('recent-uploads');
+  els.sharedList = document.getElementById('shared-list');
+  els.activityList = document.getElementById('activity-list');
+  els.supportForm = document.getElementById('support-form');
+  els.settingsForm = document.getElementById('settings-form');
+  els.themeToggle = document.getElementById('theme-toggle');
+  els.passwordForm = document.getElementById('password-form');
+  els.deleteAccountBtn = document.getElementById('delete-account-btn');
+  els.modalBackdrop = document.getElementById('modal-backdrop');
+  els.modalTitle = document.getElementById('modal-title');
+  els.modalBody = document.getElementById('modal-body');
+  els.modalConfirm = document.getElementById('modal-confirm');
+  els.previewModal = document.getElementById('preview-modal');
+  els.previewFrame = document.getElementById('preview-frame');
+  els.progressBar = document.getElementById('upload-progress');
+  els.progressText = document.getElementById('upload-progress-text');
+  els.dropzone = document.getElementById('dropzone');
+  els.viewToggleList = document.getElementById('view-toggle-list');
+  els.viewToggleGrid = document.getElementById('view-toggle-grid');
+  els.breadcrumb = document.getElementById('breadcrumb');
+  els.bulkActions = document.getElementById('bulk-actions');
+  els.selectAllCheckbox = document.getElementById('select-all-checkbox');
+  els.selectionCount = document.getElementById('selection-count');
+  els.pagination = document.getElementById('pagination');
+  els.recentFileList = document.getElementById('recent-file-list');
+  els.favoritesFileList = document.getElementById('favorites-file-list');
+  els.trashFileList = document.getElementById('trash-file-list');
+  els.sidebarStorageUsed = document.getElementById('sidebar-storage-used');
+  els.sidebarStorageTotal = document.getElementById('sidebar-storage-total');
+  els.sidebarStorageBar = document.getElementById('sidebar-storage-bar');
+  els.sidebarUserName = document.getElementById('sidebar-user-name');
+  els.sidebarUserEmail = document.getElementById('sidebar-user-email');
+  els.sidebarUserAvatar = document.getElementById('sidebar-user-avatar');
+  els.topbarUserAvatar = document.getElementById('topbar-user-avatar');
+  els.profileMenu = document.getElementById('profile-menu');
+  els.topbarProfileMenu = document.getElementById('topbar-profile-menu');
+  els.notifMenu = document.getElementById('notif-menu');
+}
+
+function bindEvents() {
+  document.querySelectorAll('[data-nav]').forEach((btn) => {
+    btn.addEventListener('click', () => switchView(btn.dataset.nav));
+  });
+
+  const loginCta = document.getElementById('login-cta');
+  const signupCta = document.getElementById('signup-cta');
+  const logoutNav = document.getElementById('logout-nav');
+  const logoutTopbar = document.getElementById('logout-topbar');
+
+  if (loginCta) loginCta.addEventListener('click', () => showAuth('login'));
+  if (signupCta) signupCta.addEventListener('click', () => showAuth('signup'));
+  if (logoutNav) logoutNav.addEventListener('click', logout);
+  if (logoutTopbar) logoutTopbar.addEventListener('click', logout);
+  document.getElementById('auth-form').addEventListener('submit', handleAuthSubmit);
+  document.getElementById('create-folder-btn').addEventListener('click', createFolder);
+  document.getElementById('upload-btn').addEventListener('click', () => els.uploadInput.click());
+  els.uploadInput.addEventListener('change', () => uploadFiles(els.uploadInput.files));
+  if (els.supportForm) els.supportForm.addEventListener('submit', submitSupport);
+  if (els.settingsForm) els.settingsForm.addEventListener('submit', submitSettings);
+  if (els.passwordForm) els.passwordForm.addEventListener('submit', submitPassword);
+  if (els.deleteAccountBtn) els.deleteAccountBtn.addEventListener('click', () => openModal('Account deletion', 'This demo build does not delete accounts. It only records the request.', () => {}));
+  if (els.modalConfirm) els.modalConfirm.addEventListener('click', handleModalConfirm);
+  const modalClose = document.getElementById('modal-close');
+  if (modalClose) modalClose.addEventListener('click', closeModal);
+
+  if (els.dropzone) {
+    const selectBtn = els.dropzone.querySelector('.dropzone-select-btn');
+    els.dropzone.addEventListener('click', () => els.uploadInput.click());
+    selectBtn?.addEventListener('click', (e) => { e.stopPropagation(); els.uploadInput.click(); });
+    els.dropzone.addEventListener('dragover', (e) => { e.preventDefault(); state.dragActive = true; els.dropzone.classList.add('dragging'); });
+    els.dropzone.addEventListener('dragleave', () => { state.dragActive = false; els.dropzone.classList.remove('dragging'); });
+    els.dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      state.dragActive = false;
+      els.dropzone.classList.remove('dragging');
+      uploadFiles(e.dataTransfer.files);
+    });
+  }
+
+  if (els.sortSelect) els.sortSelect.addEventListener('change', (e) => { state.sortBy = e.target.value; renderFiles(); });
+  if (els.filterSelect) els.filterSelect.addEventListener('change', (e) => { state.filterType = e.target.value; state.currentPage = 1; renderFiles(); });
+  els.viewToggleGrid?.addEventListener('click', () => { state.showGrid = true; state.currentPage = 1; renderFiles(); updateViewToggleButtons(); });
+  els.viewToggleList?.addEventListener('click', () => { state.showGrid = false; state.currentPage = 1; renderFiles(); updateViewToggleButtons(); });
+
+  const bulkDeleteBtn = document.getElementById('bulk-delete');
+  if (bulkDeleteBtn) bulkDeleteBtn.addEventListener('click', bulkDelete);
+  const bulkShareBtn = document.getElementById('bulk-share');
+  if (bulkShareBtn) bulkShareBtn.addEventListener('click', bulkShare);
+  const bulkDownloadBtn = document.getElementById('bulk-download');
+  if (bulkDownloadBtn) bulkDownloadBtn.addEventListener('click', bulkDownload);
+  const bulkMoveBtn = document.getElementById('bulk-move');
+  if (bulkMoveBtn) bulkMoveBtn.addEventListener('click', bulkMove);
+  const bulkClearBtn = document.getElementById('bulk-clear');
+  if (bulkClearBtn) bulkClearBtn.addEventListener('click', clearSelection);
+  if (els.selectAllCheckbox) els.selectAllCheckbox.addEventListener('change', toggleSelectAll);
+
+  const themeToggle = document.getElementById('theme-toggle');
+  if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
+
+  const topbarUploadBtn = document.getElementById('topbar-upload-btn');
+  if (topbarUploadBtn) topbarUploadBtn.addEventListener('click', () => els.uploadInput.click());
+  const topbarNewFolderBtn = document.getElementById('topbar-new-folder-btn');
+  if (topbarNewFolderBtn) topbarNewFolderBtn.addEventListener('click', createFolder);
+
+  const emptyTrashBtn = document.getElementById('empty-trash-btn');
+  if (emptyTrashBtn) emptyTrashBtn.addEventListener('click', emptyTrash);
+
+  document.querySelectorAll('.theme-option').forEach((btn) => {
+    btn.addEventListener('click', () => setThemePreference(btn.dataset.themeChoice));
+  });
+
+  const moveModal = document.getElementById('move-modal');
+  const moveModalClose = document.getElementById('move-modal-close');
+  if (moveModalClose) moveModalClose.addEventListener('click', () => moveModal.classList.add('hidden'));
+  document.querySelectorAll('.modal-backdrop').forEach((backdrop) => {
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) backdrop.classList.add('hidden');
+    });
+  });
+
+  bindDropdown(document.getElementById('profile-menu-btn'), els.profileMenu);
+  bindDropdown(document.getElementById('topbar-avatar-btn'), els.topbarProfileMenu);
+  bindDropdown(document.getElementById('notif-btn'), els.notifMenu);
+
+  document.querySelectorAll('[data-auth]').forEach((btn) => {
+    btn.addEventListener('click', () => showAuth(btn.dataset.auth === 'signup' ? 'signup' : 'login'));
+  });
+
+  document.querySelectorAll('.auth-toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => showAuth(btn.dataset.authMode));
+  });
+
+  const passwordToggle = document.getElementById('auth-password-toggle');
+  if (passwordToggle) passwordToggle.addEventListener('click', () => {
+    const isPassword = els.authPassword.type === 'password';
+    els.authPassword.type = isPassword ? 'text' : 'password';
+    passwordToggle.innerHTML = svgIcon(isPassword ? 'i-eye-off' : 'i-eye');
+    passwordToggle.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+  });
+
+  const authBack = document.getElementById('auth-back');
+  if (authBack) authBack.addEventListener('click', () => {
+    state.view = 'landing';
+    resetAuthForm();
+    els.authScreen.classList.add('hidden');
+    els.landingScreen.classList.remove('hidden');
+  });
+
+  const sidebarEl = document.querySelector('.sidebar');
+  const sidebarToggle = document.getElementById('sidebar-toggle');
+  const sidebarOverlay = document.getElementById('sidebar-overlay');
+  const closeSidebar = () => {
+    if (sidebarEl) sidebarEl.classList.remove('open');
+    if (sidebarOverlay) sidebarOverlay.classList.remove('visible');
+  };
+  if (sidebarToggle) sidebarToggle.addEventListener('click', () => {
+    if (sidebarEl) sidebarEl.classList.toggle('open');
+    if (sidebarOverlay) sidebarOverlay.classList.toggle('visible', sidebarEl?.classList.contains('open'));
+  });
+  if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebar);
+  document.querySelectorAll('.sidebar .nav-item').forEach((btn) => btn.addEventListener('click', closeSidebar));
+}
+
+function bindDropdown(trigger, menu) {
+  if (!trigger || !menu) return;
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const willOpen = menu.classList.contains('hidden');
+    document.querySelectorAll('.profile-menu').forEach((m) => m.classList.add('hidden'));
+    if (willOpen) menu.classList.remove('hidden');
+  });
+  document.addEventListener('click', (e) => {
+    if (!menu.contains(e.target) && e.target !== trigger) menu.classList.add('hidden');
+  });
+}
+
+let searchDebounceTimer = null;
+
+function bindGlobalSearch() {
+  if (!els.globalSearchInput) return;
+  const resultsEl = document.getElementById('search-results');
+  if (!resultsEl) return;
+  els.globalSearchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    clearTimeout(searchDebounceTimer);
+    if (!query) {
+      resultsEl.classList.add('hidden');
+      resultsEl.innerHTML = '';
+      return;
+    }
+    resultsEl.classList.remove('hidden');
+    resultsEl.innerHTML = '<div class="search-loading">Searching…</div>';
+    searchDebounceTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        renderSearchResults(resultsEl, data.items || []);
+      } catch {
+        resultsEl.innerHTML = '<div class="search-empty">Search failed. Try again.</div>';
+      }
+    }, 250);
+  });
+  document.addEventListener('click', (e) => {
+    if (!resultsEl.contains(e.target) && e.target !== els.globalSearchInput) {
+      resultsEl.classList.add('hidden');
+    }
+  });
+}
+
+function renderSearchResults(container, items) {
+  if (!items.length) {
+    container.innerHTML = '<div class="search-empty">No matches found.</div>';
+    return;
+  }
+  container.innerHTML = items.map((item) => `
+    <button class="search-result-row" data-result-id="${item.id}" data-result-parent="${item.parentId ?? ''}" data-result-type="${item.type}">
+      <span class="file-icon">${getFileVisual(item, 'sm')}</span>
+      <span class="search-result-meta"><strong>${escapeHtml(item.displayName || item.name)}</strong><span>${escapeHtml(item.location || 'Home')}</span></span>
+    </button>
+  `).join('');
+  container.querySelectorAll('[data-result-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      container.classList.add('hidden');
+      els.globalSearchInput.value = '';
+      const targetFolder = btn.dataset.resultType === 'folder' ? btn.dataset.resultId : (btn.dataset.resultParent || null);
+      state.currentFolder = targetFolder || null;
+      state.currentPage = 1;
+      state.search = '';
+      switchView('files');
+    });
+  });
+}
+
+function showMessage(message) {
+  state.message = message;
+  state.error = '';
+  render();
+  setTimeout(() => { if (state.message === message) { state.message = ''; render(); } }, 2500);
+}
+
+function showError(message) {
+  state.error = message;
+  render();
+}
+
+function getInitials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'U';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function applyUserChrome() {
+  if (!state.user) return;
+  const label = state.user.displayName || state.user.username;
+  const initials = getInitials(label);
+  if (els.userName) els.userName.innerText = label;
+  if (els.sidebarUserName) els.sidebarUserName.innerText = label;
+  if (els.sidebarUserEmail) els.sidebarUserEmail.innerText = state.user.email || state.user.username;
+  if (els.sidebarUserAvatar) els.sidebarUserAvatar.innerText = initials;
+  if (els.topbarUserAvatar) els.topbarUserAvatar.innerText = initials;
+  const adminNav = document.querySelector('[data-nav="admin"]');
+  const adminLabel = document.getElementById('admin-nav-label');
+  const isAdmin = !!state.user.isAdmin;
+  if (adminNav) adminNav.classList.toggle('hidden', !isAdmin);
+  if (adminLabel) adminLabel.classList.toggle('hidden', !isAdmin);
+  const adminBadge = document.getElementById('settings-admin-badge');
+  if (adminBadge) adminBadge.classList.toggle('hidden', !isAdmin);
+}
+
+function isUnlimitedQuota(quotaMb) {
+  return quotaMb === -1;
+}
+
+/** Computes display-ready values for a quota bar/label, handling the
+ * unlimited (-1) sentinel cleanly instead of producing broken percentages. */
+function computeQuotaDisplay(totalSize, quotaMb) {
+  if (isUnlimitedQuota(quotaMb)) {
+    return { percent: 100, isUnlimited: true, totalLabel: 'Unlimited' };
+  }
+  const quotaBytes = quotaMb * 1024 * 1024;
+  const percent = Math.min(100, Math.round((totalSize / quotaBytes) * 100));
+  return { percent, isUnlimited: false, totalLabel: formatGb(quotaBytes) };
+}
+
+function applyQuotaBar(barEl, totalSize, quotaMb) {
+  if (!barEl) return;
+  const q = computeQuotaDisplay(totalSize, quotaMb);
+  barEl.style.width = `${q.percent}%`;
+  barEl.parentElement?.classList.toggle('is-unlimited', q.isUnlimited);
+  return q;
+}
+
+function updateSidebarStorage(totalSize, quotaMb) {
+  const q = applyQuotaBar(els.sidebarStorageBar, totalSize, quotaMb);
+  if (els.sidebarStorageUsed) els.sidebarStorageUsed.innerText = formatBytes(totalSize);
+  if (els.sidebarStorageTotal) els.sidebarStorageTotal.innerText = q.totalLabel;
+}
+
+function formatGb(bytes) {
+  const gb = bytes / (1024 * 1024 * 1024);
+  return gb >= 10 ? `${Math.round(gb)} GB` : `${gb.toFixed(1)} GB`;
+}
+
+async function loadAppConfig() {
+  try {
+    const res = await fetch('/api/config');
+    const data = await res.json();
+    if (!res.ok) return;
+    state.appConfig = data;
+    document.getElementById('maintenance-banner')?.classList.toggle('hidden', !data.maintenanceMode);
+    const aboutVersion = document.getElementById('about-version');
+    const aboutMode = document.getElementById('about-registration-mode');
+    if (aboutVersion) aboutVersion.innerText = data.version;
+    if (aboutMode) aboutMode.innerText = `Registration: ${data.registrationMode}`;
+  } catch {
+    // ignore - app still works without config info
+  }
+}
+
+async function loadUser() {
+  try {
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) {
+      state.user = null;
+      switchView('landing');
+      return;
+    }
+    const data = await res.json();
+    state.user = data.user;
+    state.themePreference = data.user.theme || 'dark';
+    state.maxFileSizeMb = data.maxFileSizeMb || 20;
+    state.storageQuotaMb = data.storageQuotaMb || 5120;
+    applyTheme();
+    applyUserChrome();
+    updateSidebarStorage(data.summary?.totalSize || 0, state.storageQuotaMb);
+    switchView('dashboard');
+    loadFiles();
+    loadActivity();
+    loadShared();
+    loadAdminSummary();
+  } catch {
+    state.user = null;
+    switchView('landing');
+  }
+}
+
+const VIEW_TITLES = {
+  dashboard: 'Dashboard', files: 'My Files', shared: 'Shared Files', recent: 'Recent',
+  favorites: 'Favorites', trash: 'Trash', uploads: 'Uploads', storage: 'Storage',
+  settings: 'Settings', support: 'Support', activity: 'Activity', admin: 'Admin'
+};
+
+function switchView(view) {
+  state.view = view;
+  document.querySelectorAll('.profile-menu').forEach((m) => m.classList.add('hidden'));
+  document.querySelectorAll('[data-nav]').forEach((btn) => btn.classList.toggle('active', btn.dataset.nav === view));
+  document.querySelectorAll('.page-section').forEach((section) => section.classList.add('hidden'));
+  const target = document.getElementById(`${view}-page`);
+  if (target) target.classList.remove('hidden');
+  const titleText = VIEW_TITLES[view] || 'Frostyy Cloud';
+  if (els.viewTitle) els.viewTitle.innerText = titleText;
+  if (els.topbarTitle) els.topbarTitle.innerText = titleText;
+  if (state.user) {
+    els.authScreen.classList.add('hidden');
+    els.landingScreen.classList.add('hidden');
+    els.dashboardShell.classList.remove('hidden');
+    applyUserChrome();
+    if (view === 'dashboard') loadDashboard();
+    if (view === 'files') { loadFiles(); loadFilesStatsRow(); }
+    if (view === 'shared') loadShared();
+    if (view === 'recent') loadRecent();
+    if (view === 'favorites') loadFavorites();
+    if (view === 'trash') loadTrash();
+    if (view === 'activity') loadActivity();
+    if (view === 'admin') { loadAdminSummary(); loadAdminUsers(); }
+    if (view === 'settings') { populateSettingsForm(); loadSettingsPage(); }
+    if (view === 'storage') loadStoragePage();
+  } else {
+    els.dashboardShell.classList.add('hidden');
+    els.authScreen.classList.add('hidden');
+    els.landingScreen.classList.remove('hidden');
+  }
+  render();
+}
+
+function resetAuthForm() {
+  els.authForm.reset();
+  els.authError.innerText = '';
+  els.authMessage.innerText = '';
+  const confirmHint = document.getElementById('auth-confirm-hint');
+  if (confirmHint) confirmHint.classList.add('hidden');
+}
+
+function showAuth(mode) {
+  state.view = mode;
+  els.landingScreen.classList.add('hidden');
+  els.dashboardShell.classList.add('hidden');
+  els.authScreen.classList.remove('hidden');
+  resetAuthForm();
+
+  document.querySelectorAll('.auth-toggle-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.authMode === mode));
+  els.authTitle.innerText = mode === 'signup' ? 'Create your account' : 'Welcome back';
+  document.getElementById('auth-subtitle').innerText = mode === 'signup'
+    ? 'Sign up to start using Frostyy Cloud.'
+    : 'Log in to access your Frostyy Cloud account.';
+  els.authSwitch.innerHTML = mode === 'signup'
+    ? "Already have an account? <button type=\"button\" class=\"pill-btn\" data-auth-toggle>Log in</button>"
+    : "Don't have an account? <button type=\"button\" class=\"pill-btn\" data-auth-toggle>Sign up</button>";
+  document.querySelector('[data-auth-toggle]').addEventListener('click', () => showAuth(mode === 'signup' ? 'login' : 'signup'));
+
+  const passwordHint = document.getElementById('auth-password-hint');
+  if (passwordHint) passwordHint.classList.toggle('hidden', mode === 'login');
+  document.getElementById('auth-confirm-field')?.classList.toggle('hidden', mode === 'login');
+  els.authPassword.setAttribute('autocomplete', mode === 'signup' ? 'new-password' : 'current-password');
+
+  els.authSubmit.innerHTML = mode === 'signup' ? 'Create account' : `Continue ${svgIcon('i-arrow-right')}`;
+  els.authForm.dataset.mode = mode;
+
+  const registrationMode = state.appConfig?.registrationMode || 'open';
+  const inviteField = document.getElementById('auth-invite-field');
+  const disabledNote = document.getElementById('registration-disabled-note');
+  const isSignupDisabled = mode === 'signup' && registrationMode === 'disabled';
+  if (inviteField) inviteField.classList.toggle('hidden', !(mode === 'signup' && registrationMode === 'invite'));
+  if (disabledNote) disabledNote.classList.toggle('hidden', !isSignupDisabled);
+  els.authForm.classList.toggle('hidden', isSignupDisabled);
+}
+
+async function handleAuthSubmit(event) {
+  event.preventDefault();
+  const mode = els.authForm.dataset.mode || 'login';
+  const email = els.authEmail.value.trim();
+  const password = els.authPassword.value;
+  const confirmPassword = els.authConfirmPassword ? els.authConfirmPassword.value : '';
+  const inviteCode = document.getElementById('auth-invite-code')?.value.trim() || '';
+  els.authError.innerText = '';
+  els.authMessage.innerText = '';
+  if (!email || !password) {
+    els.authError.innerText = 'Email and password are required';
+    return;
+  }
+  if (mode === 'signup' && password.length < 8) {
+    els.authError.innerText = 'Password must be at least 8 characters';
+    return;
+  }
+  if (mode === 'signup' && password !== confirmPassword) {
+    els.authError.innerText = 'Passwords do not match';
+    return;
+  }
+  state.loading = true;
+  const originalLabel = els.authSubmit.innerHTML;
+  els.authSubmit.disabled = true;
+  els.authSubmit.innerText = mode === 'signup' ? 'Creating account…' : 'Signing in…';
+  render();
+  try {
+    const res = await fetch(`/api/auth/${mode === 'signup' ? 'register' : 'login'}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mode === 'signup' ? { username: email, password, email, inviteCode } : { username: email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Authentication failed');
+    state.user = data.user;
+    state.themePreference = data.user.theme || 'dark';
+    applyTheme();
+    resetAuthForm();
+    showMessage(mode === 'signup' ? 'Welcome to Frostyy Cloud.' : 'Signed in successfully.');
+    switchView('dashboard');
+    loadFiles();
+    loadActivity();
+    loadShared();
+    loadAdminSummary();
+  } catch (err) {
+    els.authError.innerText = err.message || 'Authentication failed';
+    els.authPassword.value = '';
+    if (els.authConfirmPassword) els.authConfirmPassword.value = '';
+  } finally {
+    state.loading = false;
+    els.authSubmit.disabled = false;
+    els.authSubmit.innerHTML = originalLabel;
+    render();
+  }
+}
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  state.user = null;
+  state.files = [];
+  state.shared = [];
+  resetAuthForm();
+  switchView('landing');
+}
+
+async function loadFiles() {
+  if (!state.user) return;
+  state.loading = true;
+  render();
+  try {
+    const params = state.currentFolder ? `?parentId=${encodeURIComponent(state.currentFolder)}` : '';
+    const res = await fetch(`/api/files${params}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load files');
+    state.files = data.items || [];
+    state.breadcrumb = data.breadcrumb || [];
+    state.maxFileSizeMb = data.maxFileSizeMb || state.maxFileSizeMb;
+    state.storageQuotaMb = data.storageQuotaMb || state.storageQuotaMb;
+    state.selectedIds.clear();
+    renderFiles();
+    renderBreadcrumb();
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    state.loading = false;
+    render();
+  }
+}
+
+function renderBreadcrumb() {
+  if (!els.breadcrumb) return;
+  const crumbs = [{ id: null, name: 'Home' }, ...(state.breadcrumb || [])];
+  els.breadcrumb.innerHTML = crumbs
+    .map((crumb, index) => {
+      const separator = index < crumbs.length - 1 ? ' <span class="muted">/</span> ' : '';
+      return `<button class="crumb-link" data-crumb="${crumb.id ?? ''}">${escapeHtml(crumb.name)}</button>${separator}`;
+    })
+    .join('');
+  els.breadcrumb.querySelectorAll('[data-crumb]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      state.currentFolder = btn.dataset.crumb || null;
+      state.currentPage = 1;
+      loadFiles();
+    });
+  });
+}
+
+async function loadShared() {
+  if (!state.user) return;
+  try {
+    const res = await fetch('/api/shared');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load shared files');
+    state.shared = data.items || [];
+    renderShared();
+    const sharedCountEl = document.getElementById('shared-count');
+    if (sharedCountEl) sharedCountEl.innerText = state.shared.length;
+    const filesStatSharedEl = document.getElementById('files-stat-shared');
+    if (filesStatSharedEl) filesStatSharedEl.innerText = state.shared.length;
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function loadRecent() {
+  if (!state.user || !els.recentFileList) return;
+  try {
+    const res = await fetch('/api/files/recent');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load recent files');
+    renderSimpleGrid(els.recentFileList, data.items || [], { emptyText: 'No recent uploads yet.' });
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function loadFavorites() {
+  if (!state.user || !els.favoritesFileList) return;
+  try {
+    const res = await fetch('/api/favorites');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load favorites');
+    renderSimpleGrid(els.favoritesFileList, data.items || [], { emptyText: "You haven't starred anything yet." });
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function loadTrash() {
+  if (!state.user || !els.trashFileList) return;
+  try {
+    const res = await fetch('/api/trash');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load trash');
+    renderTrashGrid(els.trashFileList, data.items || []);
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function loadActivity() {
+  if (!state.user) return;
+  try {
+    const res = await fetch('/api/activity');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load activity');
+    state.activity = data.activities || [];
+    renderActivity();
+    renderDashboardActivity();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function loadAdminSummary() {
+  if (!state.user) return;
+  try {
+    const res = await fetch('/api/admin/summary');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load admin summary');
+    state.admin = data;
+    renderAdmin();
+  } catch {
+    state.admin = null;
+  }
+}
+
+async function loadAdminUsers() {
+  if (!state.user) return;
+  try {
+    const res = await fetch('/api/admin/users');
+    const data = await res.json();
+    if (!res.ok) return;
+    renderAdminUsers(data.users || []);
+  } catch {
+    // ignore - admin overview stats still render
+  }
+}
+
+function renderAdminUsers(users) {
+  const tbody = document.getElementById('admin-users-table');
+  if (!tbody) return;
+  tbody.innerHTML = users.map((u) => `
+    <tr>
+      <td><strong>${escapeHtml(u.displayName)}</strong><div class="muted small">${escapeHtml(u.username)}</div></td>
+      <td>${u.role === 'admin' ? '<span class="badge">Admin</span>' : 'User'}</td>
+      <td>${u.fileCount}</td>
+      <td>${formatBytes(u.storageUsed)}</td>
+      <td class="muted-cell">${u.lastActivityAt ? new Date(u.lastActivityAt).toLocaleDateString() : '—'}</td>
+      <td class="col-actions"><button class="ghost-btn" type="button" disabled title="Not implemented yet">Manage</button></td>
+    </tr>
+  `).join('');
+}
+
+function populateSettingsForm() {
+  if (!state.user) return;
+  const displayNameInput = document.getElementById('display-name');
+  const emailInput = document.getElementById('email');
+  if (displayNameInput) displayNameInput.value = state.user.displayName || '';
+  if (emailInput) emailInput.value = state.user.email || '';
+}
+
+async function loadSettingsPage() {
+  if (!state.user) return;
+  try {
+    const res = await fetch('/api/auth/me');
+    const data = await res.json();
+    if (!res.ok) return;
+    const totalSize = data.summary?.totalSize || 0;
+    const fileCount = data.summary?.fileCount || 0;
+    const quotaMb = data.storageQuotaMb ?? state.storageQuotaMb;
+    const q = applyQuotaBar(document.getElementById('settings-storage-bar'), totalSize, quotaMb);
+    document.getElementById('settings-storage-used').innerText = formatBytes(totalSize);
+    document.getElementById('settings-file-count').innerText = fileCount;
+    document.getElementById('settings-storage-label').innerText = q.isUnlimited
+      ? `${formatBytes(totalSize)} used · Unlimited plan`
+      : `${q.percent}% of ${q.totalLabel} used`;
+  } catch {
+    // ignore
+  }
+}
+
+async function loadStoragePage() {
+  if (!state.user) return;
+  try {
+    const res = await fetch('/api/auth/me');
+    const data = await res.json();
+    if (!res.ok) return;
+    const totalSize = data.summary?.totalSize || 0;
+    const quotaMb = data.storageQuotaMb ?? state.storageQuotaMb;
+    const q = applyQuotaBar(document.getElementById('storage-page-bar'), totalSize, quotaMb);
+    document.getElementById('storage-page-progress-label').innerText = q.isUnlimited ? 'Unlimited plan' : `${q.percent}% used`;
+    document.getElementById('plan-quota-free').innerText = q.totalLabel;
+  } catch {
+    // ignore
+  }
+}
+
+async function loadFilesStatsRow() {
+  if (!state.user) return;
+  try {
+    const res = await fetch('/api/auth/me');
+    const data = await res.json();
+    if (!res.ok) return;
+    document.getElementById('files-stat-count').innerText = data.summary?.fileCount || 0;
+    document.getElementById('files-stat-storage').innerText = formatBytes(data.summary?.totalSize || 0);
+    document.getElementById('files-stat-trash').innerText = data.summary?.trashedCount || 0;
+    document.getElementById('files-stat-shared').innerText = (state.shared || []).length;
+  } catch {
+    // ignore - the file grid below still works without the stats row
+  }
+}
+
+async function loadDashboard() {
+  if (!state.user) return;
+  try {
+    const res = await fetch('/api/auth/me');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load dashboard');
+    const totalSize = data.summary?.totalSize || 0;
+    const fileCount = data.summary?.fileCount || 0;
+    const quotaMb = data.storageQuotaMb ?? state.storageQuotaMb;
+    const recentFiles = [...state.files].filter((item) => item.type === 'file').sort((a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0)).slice(0, 4);
+    document.getElementById('storage-used').innerText = formatBytes(totalSize);
+    document.getElementById('file-count').innerText = fileCount;
+    document.getElementById('recent-uploads').innerHTML = recentFiles.length
+      ? recentFiles.map((item) => `<div class="badge">${getFileVisual(item, 'sm')} ${escapeHtml(item.name)}</div>`).join('')
+      : '<div class="empty-state">No uploads yet. Upload your first file to see it here.</div>';
+    const q = applyQuotaBar(document.getElementById('storage-bar'), totalSize, quotaMb);
+    document.getElementById('storage-progress-label').innerText = q.isUnlimited ? 'Unlimited plan' : `${q.percent}% of ${q.totalLabel} used`;
+    document.getElementById('storage-limit-note').innerText = q.isUnlimited
+      ? `Unlimited storage · ${state.maxFileSizeMb} MB per file`
+      : `Plan limit: ${q.totalLabel} · ${state.maxFileSizeMb} MB per file`;
+    document.getElementById('shared-count').innerText = (state.shared || []).length;
+    document.getElementById('trash-count').innerText = data.summary?.trashedCount || 0;
+    document.getElementById('trash-retention-note').innerText = data.trashRetentionDays || 30;
+    updateSidebarStorage(totalSize, quotaMb);
+    renderDashboardActivity();
+  } catch {
+    // ignore
+  }
+}
+
+function renderDashboardActivity() {
+  const el = document.getElementById('dashboard-activity');
+  if (!el) return;
+  const recent = (state.activity || []).slice(0, 5);
+  el.innerHTML = recent.length
+    ? recent.map((entry) => `
+        <div class="activity-row">
+          <strong>${escapeHtml(entry.action)}</strong>
+          <span class="small muted">${escapeHtml(entry.details?.file || entry.details?.folder || '')} · ${new Date(entry.createdAt).toLocaleString()}</span>
+        </div>
+      `).join('')
+    : '<div class="empty-state">No activity yet.</div>';
+}
+
+function render() {
+  els.messageBox.innerHTML = state.message ? `<div class="message">${escapeHtml(state.message)}</div>` : '';
+  els.errorBox.innerHTML = state.error ? `<div class="error">${escapeHtml(state.error)}</div>` : '';
+  els.loadingBox.classList.toggle('hidden', !state.loading);
+  els.dashboardShell.classList.toggle('hidden', !state.user);
+  els.authScreen.classList.toggle('hidden', state.user || state.view === 'landing');
+  els.landingScreen.classList.toggle('hidden', !!state.user || state.view === 'auth');
+  if (state.user) applyUserChrome();
+}
+
+function sortItems(items) {
+  return [...items].sort((a, b) => {
+    if (state.sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
+    if (state.sortBy === 'size') return (b.size || 0) - (a.size || 0);
+    if (state.sortBy === 'type') return (a.type || '').localeCompare(b.type || '');
+    return new Date(b.createdAt || b.uploadedAt || 0) - new Date(a.createdAt || a.uploadedAt || 0);
+  });
+}
+
+function renderFiles() {
+  const filtered = sortItems(
+    state.files.filter((item) => {
+      const name = item.name || '';
+      const matchesSearch = name.toLowerCase().includes(state.search.toLowerCase());
+      const matchesType = state.filterType === 'all' || item.type === state.filterType;
+      return matchesSearch && matchesType;
+    })
+  );
+
+  els.fileList.classList.toggle('list-view', !state.showGrid);
+  updateDropzoneDensity();
+
+  if (!filtered.length) {
+    renderFilesEmptyState();
+    updateSelectionToolbar();
+    renderPagination(0);
+    return;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / state.pageSize));
+  state.currentPage = Math.min(state.currentPage, totalPages);
+  const start = (state.currentPage - 1) * state.pageSize;
+  const pageItems = filtered.slice(start, start + state.pageSize);
+
+  if (state.showGrid) {
+    renderFileGrid(pageItems);
+  } else {
+    renderFileTable(pageItems);
+  }
+  updateSelectionToolbar();
+  renderPagination(filtered.length);
+}
+
+function renderFilesEmptyState() {
+  const hasSearchOrFilter = state.search || state.filterType !== 'all';
+  els.fileList.innerHTML = hasSearchOrFilter
+    ? `<div class="empty-state"><strong>No matching files</strong>Try a different search term or filter.</div>`
+    : `
+      <div class="empty-state files-empty-state">
+        <strong>No files here yet</strong>
+        Upload a file or create a folder to get started.
+        <div class="row" style="justify-content:center;margin-top:var(--sp-4);">
+          <button class="btn" id="empty-state-upload-btn" type="button">${svgIcon('i-upload-cloud')} Upload file</button>
+          <button class="ghost-btn" id="empty-state-folder-btn" type="button">${svgIcon('i-folder-plus')} Create folder</button>
+        </div>
+      </div>
+    `;
+  document.getElementById('empty-state-upload-btn')?.addEventListener('click', () => els.uploadInput.click());
+  document.getElementById('empty-state-folder-btn')?.addEventListener('click', createFolder);
+}
+
+function updateDropzoneDensity() {
+  if (!els.dropzone) return;
+  const isEmptyAccount = !state.currentFolder && !state.files.length && !state.search;
+  els.dropzone.classList.toggle('compact', !isEmptyAccount);
+}
+
+function renderPagination(total) {
+  if (!els.pagination) return;
+  const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
+  if (!total || totalPages <= 1) { els.pagination.innerHTML = ''; return; }
+  const current = state.currentPage;
+  const start = (current - 1) * state.pageSize + 1;
+  const end = Math.min(total, current * state.pageSize);
+
+  const pages = buildPageList(current, totalPages);
+  const pageButtons = pages.map((p) =>
+    p === '...' ? '<span class="pagination-ellipsis">…</span>' : `<button class="pagination-page-btn ${p === current ? 'active' : ''}" data-page="${p}">${p}</button>`
+  ).join('');
+
+  els.pagination.innerHTML = `
+    <span>Showing ${start} to ${end} of ${total} files</span>
+    <div class="pagination-pages">
+      <button class="pagination-page-btn" data-page="${current - 1}" ${current === 1 ? 'disabled' : ''}>${svgIcon('i-arrow-left')}</button>
+      ${pageButtons}
+      <button class="pagination-page-btn" data-page="${current + 1}" ${current === totalPages ? 'disabled' : ''}>${svgIcon('i-arrow-right')}</button>
+    </div>
+    <select class="input select pagination-size-select" id="page-size-select">
+      ${[12, 24, 48, 96].map((n) => `<option value="${n}" ${n === state.pageSize ? 'selected' : ''}>${n} per page</option>`).join('')}
+    </select>
+  `;
+  els.pagination.querySelectorAll('[data-page]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const page = Number(btn.dataset.page);
+      if (page < 1 || page > totalPages) return;
+      state.currentPage = page;
+      renderFiles();
+    });
+  });
+  document.getElementById('page-size-select')?.addEventListener('change', (e) => {
+    state.pageSize = Number(e.target.value);
+    state.currentPage = 1;
+    renderFiles();
+  });
+}
+
+function buildPageList(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages = new Set([1, total, current, current - 1, current + 1]);
+  const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  const result = [];
+  sorted.forEach((p, i) => {
+    if (i > 0 && p - sorted[i - 1] > 1) result.push('...');
+    result.push(p);
+  });
+  return result;
+}
+
+function fileActionsHtml(item, isFolder, isPreviewable) {
+  return `
+    ${isFolder ? `<button class="profile-menu-item" data-open-folder="${item.id}">${svgIcon('i-folder')} Open</button>` : `<button class="profile-menu-item" data-download="${item.id}">${svgIcon('i-download')} Download</button>`}
+    ${isPreviewable ? `<button class="profile-menu-item" data-preview="${item.id}">${svgIcon('i-image')} Preview</button>` : ''}
+    ${!isFolder ? `<button class="profile-menu-item" data-share="${item.id}">${svgIcon('i-link')} Share</button>` : ''}
+    <button class="profile-menu-item" data-move="${item.id}">${svgIcon('i-folder-plus')} Move to…</button>
+    <button class="profile-menu-item" data-rename="${item.id}">${svgIcon('i-sliders')} Rename</button>
+    <button class="profile-menu-item danger" data-delete="${item.id}">${svgIcon('i-trash')} Delete</button>
+  `;
+}
+
+function bindCardActions(card, item) {
+  card.querySelector('[data-select]')?.addEventListener('change', () => toggleSelection(item.id));
+  card.querySelector('[data-download]')?.addEventListener('click', () => downloadFile(item.id));
+  card.querySelectorAll('[data-open-folder]').forEach((el) => el.addEventListener('click', () => openFolder(item.id)));
+  card.querySelector('[data-preview]')?.addEventListener('click', () => previewFile(item));
+  card.querySelector('[data-share]')?.addEventListener('click', () => shareFile(item.id));
+  card.querySelector('[data-rename]')?.addEventListener('click', () => renameItem(item));
+  card.querySelector('[data-delete]')?.addEventListener('click', () => deleteItem(item));
+  card.querySelector('[data-favorite]')?.addEventListener('click', () => toggleFavorite(item.id));
+  card.querySelector('[data-move]')?.addEventListener('click', () => openMoveModal(item));
+  const menuToggle = card.querySelector('[data-menu-toggle]');
+  const menu = card.querySelector('[data-menu]');
+  if (menuToggle && menu) {
+    menuToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const willOpen = menu.classList.contains('hidden');
+      document.querySelectorAll('.file-card-menu').forEach((m) => m.classList.add('hidden'));
+      if (willOpen) menu.classList.remove('hidden');
+    });
+    document.addEventListener('click', (e) => {
+      if (!menu.contains(e.target) && e.target !== menuToggle) menu.classList.add('hidden');
+    });
+  }
+}
+
+function renderFileGrid(items) {
+  els.fileList.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+  items.forEach((item) => {
+    const isFolder = item.type === 'folder';
+    const isPreviewable = !isFolder && (item.mimeType?.startsWith('image/') || item.mimeType === 'application/pdf');
+    const card = document.createElement('div');
+    card.className = `file-card ${state.selectedIds.has(item.id) ? 'selected' : ''}`;
+    const modified = item.uploadedAt || item.createdAt;
+    card.innerHTML = `
+      <input type="checkbox" class="file-card-select" data-select="${item.id}" ${state.selectedIds.has(item.id) ? 'checked' : ''} />
+      <button class="file-card-menu-btn" data-menu-toggle="${item.id}" aria-label="More actions" title="More actions">${svgIcon('i-more')}</button>
+      <div class="file-card-menu profile-menu hidden" data-menu="${item.id}">${fileActionsHtml(item, isFolder, isPreviewable)}</div>
+      <div class="file-icon">${getFileVisual(item)}</div>
+      <div class="file-meta">
+        <strong title="${escapeHtml(item.displayName || item.name)}">${escapeHtml(item.displayName || item.name)}</strong>
+        <div class="file-meta-line">${isFolder ? 'Folder' : formatBytes(item.size || 0)}${modified ? ` <span aria-hidden="true">&middot;</span> ${formatShortDate(modified)}` : ''}</div>
+      </div>
+      <button class="star-btn ${item.favorite ? 'active' : ''}" data-favorite="${item.id}" aria-label="${item.favorite ? 'Remove from favorites' : 'Add to favorites'}" title="${item.favorite ? 'Remove from favorites' : 'Add to favorites'}">${svgIcon('i-star')}</button>
+    `;
+    if (isFolder) card.querySelector('.file-icon').addEventListener('click', () => openFolder(item.id));
+    bindCardActions(card, item);
+    fragment.appendChild(card);
+  });
+  els.fileList.appendChild(fragment);
+}
+
+const SORT_COLUMNS = { name: 'Name', size: 'Size', date: 'Modified' };
+
+function renderFileTable(items) {
+  const headerCells = Object.entries(SORT_COLUMNS)
+    .map(([key, label]) => {
+      const active = state.sortBy === key;
+      return `<th class="sortable ${active ? 'sort-active' : ''}" data-sort-key="${key}">${label}<span class="sort-arrow">↓</span></th>`;
+    })
+    .join('');
+
+  const rows = items
+    .map((item) => {
+      const isFolder = item.type === 'folder';
+      const isPreviewable = !isFolder && (item.mimeType?.startsWith('image/') || item.mimeType === 'application/pdf');
+      const modified = item.uploadedAt || item.createdAt;
+      return `
+        <tr class="${state.selectedIds.has(item.id) ? 'selected' : ''}" data-row-id="${item.id}">
+          <td class="col-select"><input type="checkbox" data-select="${item.id}" ${state.selectedIds.has(item.id) ? 'checked' : ''} /></td>
+          <td class="col-name"><span class="file-icon">${getFileVisual(item)}</span><strong ${isFolder ? `data-open-folder="${item.id}" style="cursor:pointer"` : ''}>${escapeHtml(item.displayName || item.name)}</strong>
+            <button class="star-btn small ${item.favorite ? 'active' : ''}" data-favorite="${item.id}" title="Favorite">${svgIcon('i-star')}</button>
+          </td>
+          <td class="muted-cell">${isFolder ? '—' : formatBytes(item.size || 0)}</td>
+          <td class="muted-cell">${modified ? formatShortDate(modified) : '—'}</td>
+          <td class="col-actions"><div class="file-actions">
+            ${isFolder ? `<button class="pill-btn" data-open-folder="${item.id}">Open</button>` : `<button class="pill-btn" data-download="${item.id}">Download</button>`}
+            ${isPreviewable ? `<button class="ghost-btn" data-preview="${item.id}">Preview</button>` : ''}
+            ${!isFolder ? `<button class="ghost-btn" data-share="${item.id}">Share</button>` : ''}
+            <button class="ghost-btn" data-rename="${item.id}">Rename</button>
+            <button class="ghost-btn danger" data-delete="${item.id}">Delete</button>
+          </div></td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  els.fileList.innerHTML = `
+    <div class="file-table-wrap">
+      <table class="file-table">
+        <thead><tr><th class="col-select"></th>${headerCells}<th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+
+  els.fileList.querySelectorAll('th[data-sort-key]').forEach((th) => {
+    th.addEventListener('click', () => {
+      state.sortBy = th.dataset.sortKey;
+      if (els.sortSelect) els.sortSelect.value = state.sortBy;
+      renderFiles();
+    });
+  });
+  items.forEach((item) => {
+    const row = els.fileList.querySelector(`tr[data-row-id="${item.id}"]`);
+    if (row) bindCardActions(row, item);
+  });
+}
+
+function renderSimpleGrid(container, items, { emptyText = 'Nothing here yet.' } = {}) {
+  if (!items.length) {
+    container.innerHTML = `<div class="empty-state">${escapeHtml(emptyText)}</div>`;
+    return;
+  }
+  container.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+  items.forEach((item) => {
+    const isFolder = item.type === 'folder';
+    const isPreviewable = !isFolder && (item.mimeType?.startsWith('image/') || item.mimeType === 'application/pdf');
+    const card = document.createElement('div');
+    card.className = 'file-card';
+    card.innerHTML = `
+      <button class="file-card-menu-btn" data-menu-toggle="${item.id}">${svgIcon('i-more')}</button>
+      <div class="file-card-menu profile-menu hidden" data-menu="${item.id}">${fileActionsHtml(item, isFolder, isPreviewable)}</div>
+      <div class="file-icon">${getFileVisual(item)}</div>
+      <div class="file-meta"><strong>${escapeHtml(item.displayName || item.name)}</strong><br>${isFolder ? 'Folder' : formatBytes(item.size || 0)}</div>
+      <button class="star-btn ${item.favorite ? 'active' : ''}" data-favorite="${item.id}" title="Toggle favorite">${svgIcon('i-star')}</button>
+    `;
+    bindCardActions(card, item);
+    fragment.appendChild(card);
+  });
+  container.appendChild(fragment);
+}
+
+function getPurgeCountdownText(purgeAt) {
+  if (!purgeAt) return { text: '', soon: false };
+  const daysLeft = Math.ceil((new Date(purgeAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  if (daysLeft <= 0) return { text: 'Deletes very soon', soon: true };
+  if (daysLeft === 1) return { text: 'Deletes tomorrow', soon: true };
+  return { text: `Deletes in ${daysLeft} days`, soon: daysLeft <= 3 };
+}
+
+function renderTrashGrid(container, items) {
+  if (!items.length) {
+    container.innerHTML = '<div class="empty-state">Trash is empty.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+  items.forEach((item) => {
+    const isFolder = item.type === 'folder';
+    const countdown = getPurgeCountdownText(item.purgeAt);
+    const card = document.createElement('div');
+    card.className = 'file-card';
+    card.innerHTML = `
+      <div class="file-icon">${getFileVisual(item)}</div>
+      <div class="file-meta"><strong>${escapeHtml(item.displayName || item.name)}</strong><br>${isFolder ? 'Folder' : formatBytes(item.size || 0)}</div>
+      <div class="trash-countdown ${countdown.soon ? 'soon' : ''}">${countdown.text}</div>
+      <div class="file-actions">
+        <button class="pill-btn" data-restore="${item.id}">${svgIcon('i-restore')} Restore</button>
+        <button class="ghost-btn danger" data-forget="${item.id}">${svgIcon('i-trash')} Delete forever</button>
+      </div>
+    `;
+    card.querySelector('[data-restore]').addEventListener('click', () => restoreItem(item));
+    card.querySelector('[data-forget]').addEventListener('click', () => permanentDeleteItem(item));
+    fragment.appendChild(card);
+  });
+  container.appendChild(fragment);
+}
+
+function renderShared() {
+  if (!state.shared.length) {
+    els.sharedList.innerHTML = '<div class="empty-state">No shared files yet.</div>';
+    return;
+  }
+  els.sharedList.innerHTML = state.shared.map((item) => `
+    <div class="file-card">
+      <div class="file-icon">${getFileVisual(item)}</div>
+      <div class="file-meta"><strong>${escapeHtml(item.name)}</strong><br>${formatBytes(item.size || 0)}</div>
+      <div class="file-actions"><button class="btn" data-copy-link="${item.id}">Copy link</button><button class="ghost-btn" data-unshare="${item.id}">Disable</button></div>
+    </div>
+  `).join('');
+  els.sharedList.querySelectorAll('[data-copy-link]').forEach((btn) => btn.addEventListener('click', () => copyShareLink(btn.dataset.copyLink)));
+  els.sharedList.querySelectorAll('[data-unshare]').forEach((btn) => btn.addEventListener('click', () => disableShare(btn.dataset.unshare)));
+}
+
+function renderActivity() {
+  if (!state.activity?.length) {
+    els.activityList.innerHTML = '<div class="empty-state">No recent activity yet.</div>';
+    return;
+  }
+  els.activityList.innerHTML = state.activity.map((entry) => `
+    <div class="card"><strong>${escapeHtml(entry.action)}</strong><div class="muted small">${escapeHtml(entry.details?.file || entry.details?.folder || '')} · ${new Date(entry.createdAt).toLocaleString()}</div></div>
+  `).join('');
+}
+
+function renderAdmin() {
+  if (!state.admin) return;
+  document.getElementById('admin-users').innerText = state.admin.totalUsers || 0;
+  document.getElementById('admin-files').innerText = state.admin.totalFiles || 0;
+  document.getElementById('admin-storage').innerText = formatBytes(state.admin.totalStorageUsed || 0);
+  document.getElementById('admin-activity').innerHTML = (state.admin.recentActivity || []).map((item) => `<div class="badge">${escapeHtml(item.action)}</div>`).join('');
+}
+
+function updateSelectionToolbar() {
+  const count = state.selectedIds.size;
+  els.bulkActions.classList.toggle('hidden', count === 0);
+  document.getElementById('default-toolbar')?.classList.toggle('hidden', count > 0);
+  if (els.selectionCount) els.selectionCount.innerText = `${count} selected`;
+  if (els.selectAllCheckbox) {
+    const visibleCheckboxes = els.fileList.querySelectorAll('[data-select]');
+    els.selectAllCheckbox.checked = visibleCheckboxes.length > 0 && [...visibleCheckboxes].every((cb) => cb.checked);
+  }
+  const selectedItems = [...state.selectedIds].map((id) => state.files.find((item) => item.id === id)).filter(Boolean);
+  const hasFile = selectedItems.some((item) => item.type === 'file');
+  const singleFileSelected = selectedItems.filter((item) => item.type === 'file').length === 1;
+  const bulkShareBtn = document.getElementById('bulk-share');
+  const bulkDownloadBtn = document.getElementById('bulk-download');
+  if (bulkShareBtn) {
+    bulkShareBtn.disabled = !singleFileSelected;
+    bulkShareBtn.title = singleFileSelected ? 'Copy share link' : 'Select exactly one file to share';
+  }
+  if (bulkDownloadBtn) {
+    bulkDownloadBtn.disabled = !hasFile;
+    bulkDownloadBtn.title = hasFile ? 'Download' : 'Select at least one file to download';
+  }
+}
+
+function toggleSelectAll(e) {
+  const checked = e.target.checked;
+  els.fileList.querySelectorAll('[data-select]').forEach((cb) => {
+    const id = cb.dataset.select;
+    if (checked) state.selectedIds.add(id); else state.selectedIds.delete(id);
+    cb.checked = checked;
+  });
+  updateSelectionToolbar();
+}
+
+function toggleSelection(id) {
+  if (state.selectedIds.has(id)) state.selectedIds.delete(id); else state.selectedIds.add(id);
+  renderFiles();
+}
+
+async function createFolder() {
+  const name = prompt('Folder name');
+  if (!name) return;
+  const res = await fetch('/api/folders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, parentId: state.currentFolder }) });
+  const data = await res.json();
+  if (!res.ok) return showError(data.error || 'Unable to create folder');
+  showMessage('Folder created');
+  loadFiles();
+}
+
+async function uploadFiles(files) {
+  if (!files?.length) return;
+  const queue = Array.from(files);
+  let uploaded = 0;
+  const progressWrap = document.getElementById('upload-progress-wrap');
+  if (progressWrap) progressWrap.classList.remove('hidden');
+  for (const file of queue) {
+    try {
+      await uploadSingleFile(file, queue.length);
+      uploaded += 1;
+    } catch (err) {
+      showError(err.message || `Failed to upload ${file.name}`);
+    }
+  }
+  state.uploadProgress = 0;
+  els.progressBar.style.width = '0%';
+  els.progressText.innerText = 'Ready';
+  if (progressWrap) progressWrap.classList.add('hidden');
+  if (uploaded) showMessage(`${uploaded} file${uploaded === 1 ? '' : 's'} uploaded successfully`);
+  loadFiles();
+}
+
+function uploadSingleFile(file, total) {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (state.currentFolder) formData.append('folderId', state.currentFolder);
+    state.loading = true;
+    render();
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/files/upload');
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        state.uploadProgress = Math.round((event.loaded / event.total) * 100);
+        els.progressBar.style.width = `${state.uploadProgress}%`;
+        els.progressText.innerText = total > 1 ? `Uploading ${file.name} (${state.uploadProgress}%)` : `${state.uploadProgress}% uploaded`;
+        render();
+      }
+    };
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState !== 4) return;
+      state.loading = false;
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        try {
+          reject(new Error(JSON.parse(xhr.responseText).error || 'Upload failed'));
+        } catch {
+          reject(new Error('Upload failed'));
+        }
+      }
+    };
+    xhr.send(formData);
+  });
+}
+
+async function downloadFile(id) {
+  window.open(`/api/files/${id}/download`);
+}
+
+function openFolder(id) {
+  state.currentFolder = id;
+  state.currentPage = 1;
+  if (state.view !== 'files') switchView('files');
+  else loadFiles();
+}
+
+async function bulkDelete() {
+  if (!state.selectedIds.size) return;
+  const count = state.selectedIds.size;
+  openModal('Move to trash', `Move ${count} item${count === 1 ? '' : 's'} to trash? You can restore them later.`, async () => {
+    const ids = [...state.selectedIds];
+    const res = await fetch('/api/files/bulk-delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+    const data = await res.json();
+    if (!res.ok) return showError(data.error || 'Delete failed');
+    state.selectedIds.clear();
+    showMessage('Moved to trash');
+    loadFiles();
+  });
+}
+
+async function bulkDownload() {
+  const ids = [...state.selectedIds];
+  const items = ids.map((id) => state.files.find((item) => item.id === id)).filter((item) => item && item.type === 'file');
+  items.forEach((item) => downloadFile(item.id));
+  if (!items.length) showError('Select at least one file to download');
+}
+
+async function bulkShare() {
+  const ids = [...state.selectedIds];
+  const item = ids.map((id) => state.files.find((entry) => entry.id === id)).find((entry) => entry && entry.type === 'file');
+  if (!item) return showError('Select a file to share');
+  await shareFile(item.id);
+}
+
+function bulkMove() {
+  const items = [...state.selectedIds].map((id) => state.files.find((entry) => entry.id === id)).filter(Boolean);
+  if (!items.length) return showError('Select at least one item to move');
+  openMoveModal(items);
+}
+
+function clearSelection() {
+  state.selectedIds.clear();
+  renderFiles();
+}
+
+async function deleteItem(item) {
+  openModal('Move to trash', `Move "${item.name}" to trash?`, async () => {
+    const res = await fetch(`/api/files/${item.id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) return showError(data.error || 'Delete failed');
+    showMessage('Moved to trash');
+    loadFiles();
+  });
+}
+
+async function restoreItem(item) {
+  const res = await fetch(`/api/files/${item.id}/restore`, { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) return showError(data.error || 'Restore failed');
+  showMessage('Restored');
+  loadTrash();
+}
+
+async function permanentDeleteItem(item) {
+  openModal('Delete forever', `Permanently delete "${item.name}"? This cannot be undone.`, async () => {
+    const res = await fetch(`/api/files/${item.id}/permanent`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) return showError(data.error || 'Delete failed');
+    showMessage('Permanently deleted');
+    loadTrash();
+  });
+}
+
+async function emptyTrash() {
+  openModal('Empty trash', 'Permanently delete everything in your trash? This cannot be undone.', async () => {
+    const res = await fetch('/api/trash/empty', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) return showError(data.error || 'Could not empty trash');
+    showMessage('Trash emptied');
+    loadTrash();
+  });
+}
+
+async function toggleFavorite(id) {
+  const res = await fetch(`/api/files/${id}/favorite`, { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) return showError(data.error || 'Could not update favorite');
+  if (state.view === 'favorites') loadFavorites();
+  else if (state.view === 'recent') loadRecent();
+  else loadFiles();
+}
+
+async function renameItem(item) {
+  const nextName = prompt('New name', item.displayName || item.name);
+  if (!nextName || nextName === item.name) return;
+  const res = await fetch(`/api/files/${item.id}/rename`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nextName }) });
+  const data = await res.json();
+  if (!res.ok) return showError(data.error || 'Rename failed');
+  showMessage('Renamed successfully');
+  loadFiles();
+}
+
+async function shareFile(id) {
+  const res = await fetch(`/api/files/${id}/share`, { method: 'POST' });
+  const data = await res.json();
+  if (!res.ok) return showError(data.error || 'Could not create share link');
+  const link = `${window.location.origin}${data.shareLink}`;
+  await navigator.clipboard.writeText(link).catch(() => {});
+  showMessage('Share link created and copied to clipboard');
+  loadShared();
+}
+
+function previewFile(item) {
+  const isImage = item.mimeType?.startsWith('image/');
+  const src = `/api/files/${item.id}/preview`;
+  els.previewFrame.innerHTML = isImage ? `<img src="${src}" alt="${escapeHtml(item.name)}" />` : `<iframe src="${src}" title="${escapeHtml(item.name)}"></iframe>`;
+  els.previewModal.classList.remove('hidden');
+}
+
+let moveContext = null;
+
+function findFolderNode(tree, id) {
+  for (const node of tree) {
+    if (node.id === id) return node;
+    const found = findFolderNode(node.children || [], id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function collectSubtreeIds(node) {
+  const ids = [node.id];
+  (node.children || []).forEach((child) => ids.push(...collectSubtreeIds(child)));
+  return ids;
+}
+
+async function openMoveModal(itemOrItems) {
+  const items = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
+  if (!items.length) return;
+  moveContext = { items };
+  const modal = document.getElementById('move-modal');
+  const subtitle = document.getElementById('move-modal-subtitle');
+  const list = document.getElementById('move-folder-list');
+  subtitle.innerText = items.length === 1
+    ? `Choose a destination for "${items[0].displayName || items[0].name}".`
+    : `Choose a destination for ${items.length} items.`;
+  list.innerHTML = '<div class="search-loading">Loading folders…</div>';
+  modal.classList.remove('hidden');
+  try {
+    const res = await fetch('/api/folders/tree');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load folders');
+    renderMoveFolderList(list, data.tree || [], items);
+  } catch (err) {
+    list.innerHTML = `<div class="search-empty">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function renderMoveFolderList(container, tree, items) {
+  const disabledIds = new Set();
+  items.forEach((item) => {
+    if (item.type === 'folder') {
+      const node = findFolderNode(tree, item.id);
+      if (node) collectSubtreeIds(node).forEach((id) => disabledIds.add(id));
+    }
+  });
+  const commonParentId = items.every((i) => i.parentId === items[0].parentId) ? items[0].parentId : undefined;
+
+  const rows = [`<button class="move-folder-row ${!commonParentId ? 'current' : ''}" data-dest="">${svgIcon('i-drive')} Home (root)</button>`];
+  const walk = (nodes, depth) => {
+    nodes.forEach((node) => {
+      const disabled = disabledIds.has(node.id);
+      const isCurrent = commonParentId !== undefined && node.id === commonParentId;
+      rows.push(`<button class="move-folder-row ${isCurrent ? 'current' : ''}" data-dest="${node.id}" style="padding-left:${16 + depth * 20}px" ${disabled ? 'disabled' : ''}>${svgIcon('i-folder')} ${escapeHtml(node.name)}</button>`);
+      if (node.children?.length) walk(node.children, depth + 1);
+    });
+  };
+  walk(tree, 0);
+  container.innerHTML = rows.join('');
+  container.querySelectorAll('[data-dest]:not(:disabled)').forEach((btn) => {
+    btn.addEventListener('click', () => performMove(btn.dataset.dest || null));
+  });
+}
+
+async function performMove(destId) {
+  const items = moveContext?.items || [];
+  if (!items.length) return;
+  const results = await Promise.all(items.map((item) =>
+    fetch(`/api/files/${item.id}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parentId: destId || null })
+    }).then(async (res) => ({ ok: res.ok, data: await res.json(), item }))
+  ));
+  document.getElementById('move-modal').classList.add('hidden');
+  const succeeded = results.filter((r) => r.ok);
+  const failed = results.filter((r) => !r.ok);
+  if (succeeded.length) showMessage(succeeded.length === 1 ? `Moved "${succeeded[0].item.name}"` : `Moved ${succeeded.length} items`);
+  if (failed.length) showError(failed[0].data.error || 'Some items could not be moved');
+  state.selectedIds.clear();
+  if (state.view === 'files') loadFiles();
+  else if (state.view === 'favorites') loadFavorites();
+  else if (state.view === 'recent') loadRecent();
+}
+
+async function withBusyButton(button, busyLabel, fn) {
+  if (!button) return fn();
+  const originalLabel = button.innerText;
+  button.disabled = true;
+  button.innerText = busyLabel;
+  try {
+    return await fn();
+  } finally {
+    button.disabled = false;
+    button.innerText = originalLabel;
+  }
+}
+
+async function submitSupport(event) {
+  event.preventDefault();
+  const subject = document.getElementById('support-subject').value.trim();
+  const message = document.getElementById('support-message').value.trim();
+  if (!subject || !message) return showError('Subject and message are required');
+  const button = event.target.querySelector('button[type="submit"]');
+  await withBusyButton(button, 'Sending…', async () => {
+    const res = await fetch('/api/support/ticket', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject, message }) });
+    const data = await res.json();
+    if (!res.ok) return showError(data.error || 'Support request failed');
+    showMessage('Support request submitted');
+    event.target.reset();
+  });
+}
+
+async function submitSettings(event) {
+  event.preventDefault();
+  const payload = {
+    displayName: document.getElementById('display-name').value,
+    email: document.getElementById('email').value,
+    theme: state.themePreference
+  };
+  const button = event.target.querySelector('button[type="submit"]');
+  await withBusyButton(button, 'Saving…', async () => {
+    const res = await fetch('/api/auth/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (!res.ok) return showError(data.error || 'Profile update failed');
+    state.user = data.user;
+    showMessage('Profile updated');
+    render();
+  });
+}
+
+async function submitPassword(event) {
+  event.preventDefault();
+  const newPassword = document.getElementById('new-password').value;
+  if (newPassword && newPassword.length < 8) return showError('New password must be at least 8 characters');
+  const payload = {
+    currentPassword: document.getElementById('current-password').value,
+    newPassword
+  };
+  const button = event.target.querySelector('button[type="submit"]');
+  await withBusyButton(button, 'Updating…', async () => {
+    const res = await fetch('/api/auth/password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (!res.ok) return showError(data.error || 'Password update failed');
+    event.target.reset();
+    showMessage('Password updated');
+  });
+}
+
+function toggleTheme() {
+  setThemePreference(state.theme === 'dark' ? 'light' : 'dark');
+}
+
+async function copyShareLink(id) {
+  const item = state.shared.find((entry) => entry.id === id);
+  if (!item) return;
+  const link = `${window.location.origin}/api/share/${item.shareToken}`;
+  await navigator.clipboard.writeText(link);
+  showMessage('Share link copied');
+}
+
+async function disableShare(id) {
+  const res = await fetch(`/api/files/${id}/share`, { method: 'DELETE' });
+  const data = await res.json();
+  if (!res.ok) return showError(data.error || 'Could not disable share');
+  showMessage('Share link disabled');
+  loadShared();
+}
+
+function openModal(title, body, onConfirm) {
+  state.modal = { title, body, onConfirm };
+  els.modalTitle.innerText = title;
+  els.modalBody.innerText = body;
+  els.modalBackdrop.classList.remove('hidden');
+}
+
+function closeModal() {
+  state.modal = null;
+  els.modalBackdrop.classList.add('hidden');
+}
+
+async function handleModalConfirm() {
+  const onConfirm = state.modal?.onConfirm;
+  if (!onConfirm) return closeModal();
+  await withBusyButton(els.modalConfirm, 'Working…', onConfirm);
+  closeModal();
+}
+
+function svgIcon(symbolId, extraClass = '') {
+  return `<svg class="icon ${extraClass}" aria-hidden="true"><use href="#${symbolId}"/></svg>`;
+}
+
+const EXTENSION_BADGES = {
+  pdf: { label: 'PDF', className: 'badge-pdf' },
+  doc: { label: 'W', className: 'badge-doc' },
+  docx: { label: 'W', className: 'badge-doc' },
+  xls: { label: 'X', className: 'badge-xls' },
+  xlsx: { label: 'X', className: 'badge-xls' },
+  csv: { label: 'X', className: 'badge-xls' },
+  ppt: { label: 'P', className: 'badge-ppt' },
+  pptx: { label: 'P', className: 'badge-ppt' },
+  zip: { label: 'ZIP', className: 'badge-zip' },
+  rar: { label: 'ZIP', className: 'badge-zip' },
+  fig: { label: '◆', className: 'badge-design' },
+  psd: { label: 'Ps', className: 'badge-design' },
+  ai: { label: 'Ai', className: 'badge-design' },
+  sketch: { label: '◆', className: 'badge-design' }
+};
+
+function getFileVisual(item, size = 'md') {
+  if (item.type === 'folder') return svgIcon('i-folder', 'icon-folder');
+  if (item.mimeType?.startsWith('image/')) {
+    if (size === 'sm') return svgIcon('i-image', 'icon-image');
+    return `<img class="file-thumb" src="/api/files/${item.id}/preview" alt="" loading="lazy" />`;
+  }
+  if (item.mimeType?.includes('video')) {
+    return `<span class="file-video-icon">${svgIcon('i-video', 'icon-video')}</span>`;
+  }
+  const ext = (item.name || '').split('.').pop()?.toLowerCase();
+  const badge = EXTENSION_BADGES[ext];
+  if (badge) return `<span class="file-badge ${badge.className}" style="width:100%;height:100%">${badge.label}</span>`;
+  if (item.mimeType === 'application/pdf') return `<span class="file-badge badge-pdf" style="width:100%;height:100%">PDF</span>`;
+  return svgIcon('i-file', 'icon-file');
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let index = 0;
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024;
+    index += 1;
+  }
+  return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function formatShortDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const today = new Date();
+  const isSameDay = date.toDateString() === today.toDateString();
+  if (isSameDay) return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const isSameYear = date.getFullYear() === today.getFullYear();
+  return date.toLocaleDateString([], isSameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;');
+}
+
+window.addEventListener('DOMContentLoaded', init);
