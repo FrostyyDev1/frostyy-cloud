@@ -21,7 +21,8 @@ const state = {
   storageQuotaMb: 5120,
   themePreference: 'dark',
   adminUsersRaw: [],
-  adminUsersSearch: ''
+  adminUsersSearch: '',
+  dashboardLoaded: false
 };
 
 const els = {};
@@ -31,6 +32,7 @@ function init() {
   bindEvents();
   bindGlobalSearch();
   applyTheme();
+  startSplashTimeout();
   loadAppConfig();
   loadUser();
   updateViewToggleButtons();
@@ -38,6 +40,58 @@ function init() {
   window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if (state.themePreference === 'system') applyTheme();
   });
+}
+
+/* ---- Splash loader ----------------------------------------------------
+   Full-screen branded loader shown on first load. It overlays everything
+   until the session check (loadUser) settles, so users never see a flash
+   of the landing page or login form before the right screen is known. */
+
+let splashHidden = false;
+let splashTimeoutId = null;
+let splashShownAt = Date.now();
+
+// Safety net: never leave the splash stuck if something hangs.
+const SPLASH_MAX_WAIT_MS = 10000;
+
+// Keep the splash visible long enough to actually be seen. Session checks on a
+// local server resolve in a few ms, which used to make the splash invisible.
+// ?splashTest=1 stretches it to 2s so the animation can be reviewed visually —
+// harmless if a user types it in production, it only delays paint slightly.
+const SPLASH_MIN_MS = new URLSearchParams(window.location.search).has('splashTest') ? 2000 : 700;
+
+function startSplashTimeout() {
+  clearTimeout(splashTimeoutId);
+  splashTimeoutId = setTimeout(hideSplash, SPLASH_MAX_WAIT_MS);
+}
+
+function hideSplash() {
+  if (splashHidden) return;
+  splashHidden = true;
+  clearTimeout(splashTimeoutId);
+  const splash = document.getElementById('splash-screen');
+  if (!splash) return;
+  const remaining = Math.max(0, SPLASH_MIN_MS - (Date.now() - splashShownAt));
+  setTimeout(() => {
+    splash.classList.add('splash-hide');
+    setTimeout(() => splash.classList.add('hidden'), 450);
+  }, remaining);
+}
+
+function showSplashError() {
+  if (splashHidden) return false;
+  const splash = document.getElementById('splash-screen');
+  if (!splash) return false;
+  clearTimeout(splashTimeoutId);
+  splash.classList.add('has-error');
+  return true;
+}
+
+async function retrySplashLoad() {
+  document.getElementById('splash-screen')?.classList.remove('has-error');
+  splashShownAt = Date.now();
+  startSplashTimeout();
+  await loadUser();
 }
 
 function getSystemTheme() {
@@ -167,6 +221,8 @@ function bindEvents() {
   if (els.passwordForm) els.passwordForm.addEventListener('submit', submitPassword);
   if (els.deleteAccountBtn) els.deleteAccountBtn.addEventListener('click', () => openModal('Account deletion', 'This demo build does not delete accounts. It only records the request.', () => {}));
   if (els.modalConfirm) els.modalConfirm.addEventListener('click', handleModalConfirm);
+  const splashRetry = document.getElementById('splash-retry');
+  if (splashRetry) splashRetry.addEventListener('click', () => withBusyButton(splashRetry, 'Retrying…', retrySplashLoad));
   const modalClose = document.getElementById('modal-close');
   if (modalClose) modalClose.addEventListener('click', closeModal);
 
@@ -432,6 +488,7 @@ async function loadUser() {
     if (!res.ok) {
       state.user = null;
       switchView('landing');
+      hideSplash();
       return;
     }
     const data = await res.json();
@@ -443,13 +500,16 @@ async function loadUser() {
     applyUserChrome();
     updateSidebarStorage(data.summary?.totalSize || 0, state.storageQuotaMb);
     switchView('dashboard');
+    hideSplash();
     loadFiles();
     loadActivity();
     loadShared();
     loadAdminSummary();
   } catch {
+    // Network-level failure (server unreachable). If the splash is still up,
+    // show its retry state instead of dumping the user on the landing page.
     state.user = null;
-    switchView('landing');
+    if (!showSplashError()) switchView('landing');
   }
 }
 
@@ -595,6 +655,8 @@ async function logout() {
   state.user = null;
   state.files = [];
   state.shared = [];
+  state.adminUsersRaw = [];
+  state.dashboardLoaded = false;
   resetAuthForm();
   switchView('landing');
 }
@@ -602,6 +664,10 @@ async function logout() {
 async function loadFiles() {
   if (!state.user) return;
   state.loading = true;
+  // Skeleton grid while the first listing for this folder is in flight.
+  if (!state.files.length && els.fileList) {
+    els.fileList.innerHTML = `<div class="skeleton-grid">${'<div class="skeleton-card"></div>'.repeat(8)}</div>`;
+  }
   render();
   try {
     const params = state.currentFolder ? `?parentId=${encodeURIComponent(state.currentFolder)}` : '';
@@ -723,14 +789,19 @@ async function loadAdminSummary() {
 
 async function loadAdminUsers() {
   if (!state.user) return;
+  const tbody = document.getElementById('admin-users-table');
+  if (tbody && !state.adminUsersRaw.length) tbody.innerHTML = skeletonTableRows(6);
   try {
     const res = await fetch('/api/admin/users');
     const data = await res.json();
-    if (!res.ok) return;
+    if (!res.ok) {
+      if (tbody && !state.adminUsersRaw.length) tbody.innerHTML = '<tr><td colspan="6" class="muted-cell">Could not load users.</td></tr>';
+      return;
+    }
     state.adminUsersRaw = data.users || [];
     renderAdminUsersFiltered();
   } catch {
-    // ignore - admin overview stats still render
+    if (tbody && !state.adminUsersRaw.length) tbody.innerHTML = '<tr><td colspan="6" class="muted-cell">Could not load users. Check your connection and try again.</td></tr>';
   }
 }
 
@@ -820,7 +891,7 @@ function bindAdminUserRowActions(row, user) {
   const roleBtn = row.querySelector('.admin-role-btn');
   const disableBtn = row.querySelector('.admin-disable-btn');
 
-  quotaBtn?.addEventListener('click', () => withBusyButton(quotaBtn, 'Setting…', async () => {
+  quotaBtn?.addEventListener('click', () => withBusyButton(quotaBtn, 'Saving…', async () => {
     const value = quotaSelect.value;
     const res = await fetch(`/api/admin/users/${encodeURIComponent(user.username)}/quota`, {
       method: 'POST',
@@ -846,7 +917,7 @@ function bindAdminUserRowActions(row, user) {
       if (!res.ok) return showError(data.error || 'Could not update role');
       showMessage(data.note || `${verb}d ${user.displayName || user.username}`);
       loadAdminUsers();
-    });
+    }, 'Updating…');
   });
 
   disableBtn?.addEventListener('click', () => {
@@ -861,7 +932,7 @@ function bindAdminUserRowActions(row, user) {
       if (!res.ok) return showError(data.error || `Could not ${verb.toLowerCase()} account`);
       showMessage(`${verb}d ${user.displayName || user.username}`);
       loadAdminUsers();
-    });
+    }, 'Updating…');
   });
 }
 
@@ -924,8 +995,26 @@ async function loadFilesStatsRow() {
   }
 }
 
+/** Skeleton <tr> placeholder rows for a table that's still loading. */
+function skeletonTableRows(cols, rows = 3) {
+  return Array.from({ length: rows }, () =>
+    `<tr>${Array.from({ length: cols }, () => '<td><span class="skeleton-line"></span></td>').join('')}</tr>`
+  ).join('');
+}
+
+/** Shimmer placeholders in the dashboard stat cards until real data lands. */
+function showDashboardSkeleton() {
+  ['storage-used', 'file-count', 'shared-count', 'trash-count'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<span class="skeleton-line w-sm"></span>';
+  });
+  const uploads = document.getElementById('recent-uploads');
+  if (uploads) uploads.innerHTML = '<span class="skeleton-line w-md"></span> <span class="skeleton-line w-md"></span>';
+}
+
 async function loadDashboard() {
   if (!state.user) return;
+  if (!state.dashboardLoaded) showDashboardSkeleton();
   try {
     const res = await fetch('/api/auth/me');
     const data = await res.json();
@@ -949,8 +1038,17 @@ async function loadDashboard() {
     document.getElementById('trash-retention-note').innerText = data.trashRetentionDays || 30;
     updateSidebarStorage(totalSize, quotaMb);
     renderDashboardActivity();
+    state.dashboardLoaded = true;
   } catch {
-    // ignore
+    // Clear any skeleton placeholders so the cards don't shimmer forever.
+    ['storage-used', 'file-count', 'shared-count', 'trash-count'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && el.querySelector('.skeleton-line')) el.innerText = '—';
+    });
+    const uploads = document.getElementById('recent-uploads');
+    if (uploads && uploads.querySelector('.skeleton-line')) {
+      uploads.innerHTML = '<div class="empty-state">Could not load dashboard data. Check your connection and refresh.</div>';
+    }
   }
 }
 
@@ -1350,14 +1448,21 @@ function toggleSelection(id) {
   renderFiles();
 }
 
+let createFolderInFlight = false;
 async function createFolder() {
+  if (createFolderInFlight) return;
   const name = prompt('Folder name');
   if (!name) return;
-  const res = await fetch('/api/folders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, parentId: state.currentFolder }) });
-  const data = await res.json();
-  if (!res.ok) return showError(data.error || 'Unable to create folder');
-  showMessage('Folder created');
-  loadFiles();
+  createFolderInFlight = true;
+  try {
+    const res = await fetch('/api/folders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, parentId: state.currentFolder }) });
+    const data = await res.json();
+    if (!res.ok) return showError(data.error || 'Unable to create folder');
+    showMessage('Folder created');
+    loadFiles();
+  } finally {
+    createFolderInFlight = false;
+  }
 }
 
 async function uploadFiles(files) {
@@ -1438,7 +1543,7 @@ async function bulkDelete() {
     state.selectedIds.clear();
     showMessage('Moved to trash');
     loadFiles();
-  });
+  }, 'Deleting…');
 }
 
 async function bulkDownload() {
@@ -1473,7 +1578,7 @@ async function deleteItem(item) {
     if (!res.ok) return showError(data.error || 'Delete failed');
     showMessage('Moved to trash');
     loadFiles();
-  });
+  }, 'Deleting…');
 }
 
 async function restoreItem(item) {
@@ -1491,7 +1596,7 @@ async function permanentDeleteItem(item) {
     if (!res.ok) return showError(data.error || 'Delete failed');
     showMessage('Permanently deleted');
     loadTrash();
-  });
+  }, 'Deleting…');
 }
 
 async function emptyTrash() {
@@ -1501,7 +1606,7 @@ async function emptyTrash() {
     if (!res.ok) return showError(data.error || 'Could not empty trash');
     showMessage('Trash emptied');
     loadTrash();
-  });
+  }, 'Deleting…');
 }
 
 async function toggleFavorite(id) {
@@ -1601,7 +1706,11 @@ function renderMoveFolderList(container, tree, items) {
   walk(tree, 0);
   container.innerHTML = rows.join('');
   container.querySelectorAll('[data-dest]:not(:disabled)').forEach((btn) => {
-    btn.addEventListener('click', () => performMove(btn.dataset.dest || null));
+    btn.addEventListener('click', () => {
+      // Disable every destination row so a slow move can't be double-fired.
+      container.querySelectorAll('[data-dest]').forEach((row) => { row.disabled = true; });
+      withBusyButton(btn, 'Moving…', () => performMove(btn.dataset.dest || null));
+    });
   });
 }
 
@@ -1710,8 +1819,8 @@ async function disableShare(id) {
   loadShared();
 }
 
-function openModal(title, body, onConfirm) {
-  state.modal = { title, body, onConfirm };
+function openModal(title, body, onConfirm, busyLabel = 'Working…') {
+  state.modal = { title, body, onConfirm, busyLabel };
   els.modalTitle.innerText = title;
   els.modalBody.innerText = body;
   els.modalBackdrop.classList.remove('hidden');
@@ -1723,9 +1832,9 @@ function closeModal() {
 }
 
 async function handleModalConfirm() {
-  const onConfirm = state.modal?.onConfirm;
+  const { onConfirm, busyLabel } = state.modal || {};
   if (!onConfirm) return closeModal();
-  await withBusyButton(els.modalConfirm, 'Working…', onConfirm);
+  await withBusyButton(els.modalConfirm, busyLabel || 'Working…', onConfirm);
   closeModal();
 }
 

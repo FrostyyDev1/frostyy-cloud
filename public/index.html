@@ -57,140 +57,236 @@
     </svg>
 
     <div id="app">
-      <!-- ============ LANDING ============ -->
-      <div id="landing-screen" class="landing">
-        <header class="landing-nav">
-          <div class="brand">
-            <span class="brand-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
-            <span class="brand-name">Frostyy&nbsp;Cloud</span>
+      <!-- ============ SPLASH ============ -->
+      <div id="splash-screen" class="splash" role="status" aria-live="polite">
+        <div class="splash-inner">
+          <div class="splash-logo-wrap" aria-hidden="true">
+            <span class="splash-ring"></span>
+            <span class="splash-orbit"><span class="splash-particle"></span></span>
+            <span class="splash-orbit orbit-2"><span class="splash-particle"></span></span>
+            <span class="splash-logo"><svg class="icon"><use href="#i-snowflake"/></svg></span>
           </div>
-          <nav class="landing-nav-actions">
-            <button id="login-cta" class="ghost-btn">Log in</button>
-            <button class="btn" data-auth="signup">Get started</button>
-          </nav>
-        </header>
-
-        <section class="hero">
-          <div class="hero-copy">
-            <div class="hero-badge"><svg class="icon"><use href="#i-shield"/></svg><span>Self-hosted &middot; Private &middot; Yours</span></div>
-            <h1>Your files, in a calm, private cloud.</h1>
-            <p class="hero-sub">Frostyy Cloud is polished, self-hosted storage for individuals, freelancers, and small teams. Organize, preview, and share your work from one clean dashboard — on hardware you control.</p>
-            <div class="hero-actions">
-              <button id="signup-cta" class="btn btn-lg">Start free <svg class="icon"><use href="#i-arrow-right"/></svg></button>
-              <button class="ghost-btn btn-lg" data-auth="login">Log in</button>
-            </div>
-            <ul class="hero-list">
-              <li><svg class="icon check"><use href="#i-check"/></svg> Secure uploads with size limits</li>
-              <li><svg class="icon check"><use href="#i-check"/></svg> Private sharing links you can revoke anytime</li>
-              <li><svg class="icon check"><use href="#i-check"/></svg> Runs offline on your own hardware</li>
-            </ul>
+          <div class="splash-title">Frostyy Cloud</div>
+          <div class="splash-loading">
+            <div class="splash-status">Starting your private cloud&hellip;</div>
+            <div class="splash-bar" aria-hidden="true"><span></span></div>
           </div>
-        </section>
-
-        <div class="landing-preview" aria-hidden="true">
-          <div class="landing-preview-head"><svg class="icon"><use href="#i-folder"/></svg> My Files</div>
-          <div class="landing-preview-body">
-            <table class="file-table" style="margin:0">
-              <thead><tr><th>Name</th><th>Size</th><th>Modified</th></tr></thead>
-              <tbody>
-                <tr>
-                  <td class="col-name"><span class="file-icon"><svg class="icon icon-image"><use href="#i-image"/></svg></span><strong>brand-refresh.png</strong></td>
-                  <td class="muted-cell">2.4 MB</td>
-                  <td class="muted-cell">Today</td>
-                </tr>
-                <tr>
-                  <td class="col-name"><span class="file-icon"><svg class="icon icon-pdf"><use href="#i-file-text"/></svg></span><strong>proposal-v3.pdf</strong></td>
-                  <td class="muted-cell">860 KB</td>
-                  <td class="muted-cell">Yesterday</td>
-                </tr>
-                <tr>
-                  <td class="col-name"><span class="file-icon"><svg class="icon icon-archive"><use href="#i-archive"/></svg></span><strong>client-assets.zip</strong></td>
-                  <td class="muted-cell">48 MB</td>
-                  <td class="muted-cell">Tuesday</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="splash-error">
+            <strong>Something went wrong</strong>
+            <p class="muted small">We couldn't reach your Frostyy Cloud server. Check that it's running, then try again.</p>
+            <button id="splash-retry" class="btn" type="button">Retry</button>
           </div>
         </div>
+      </div>
 
-        <section class="landing-features">
-          <div class="section-head">
-            <h2>Built for the way you work</h2>
-            <p class="muted">One quiet workspace for every deliverable, asset, and archive.</p>
+      <!-- ============ LANDING ============ -->
+      <div id="landing-screen" class="landing">
+        <div class="landing-glow" aria-hidden="true"></div>
+        <header class="landing-nav">
+          <div class="landing-container landing-nav-inner">
+            <div class="brand">
+              <span class="brand-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
+              <span class="brand-name">Frostyy&nbsp;Cloud</span>
+            </div>
+            <nav class="landing-nav-actions">
+              <button id="login-cta" class="ghost-btn">Log in</button>
+              <button class="btn" data-auth="signup">Get started</button>
+            </nav>
           </div>
-          <div class="grid-3">
-            <div class="card feature-card">
-              <span class="feature-icon"><svg class="icon"><use href="#i-image"/></svg></span>
-              <h3>For creators</h3>
-              <p class="muted">Keep design files, project assets, and contracts organized in one secure workspace with instant previews.</p>
-            </div>
-            <div class="card feature-card">
-              <span class="feature-icon"><svg class="icon"><use href="#i-link"/></svg></span>
-              <h3>For freelancers</h3>
-              <p class="muted">Share deliverables with clients through private links and polished previews — revoke access whenever you like.</p>
-            </div>
-            <div class="card feature-card">
-              <span class="feature-icon"><svg class="icon"><use href="#i-users"/></svg></span>
-              <h3>For small teams</h3>
-              <p class="muted">Use the admin and activity views to keep an eye on usage as your self-hosted cloud grows with you.</p>
-            </div>
-          </div>
-        </section>
+        </header>
 
-        <section class="landing-cta">
-          <div class="cta-card">
-            <div>
-              <h2>Own your cloud tonight.</h2>
-              <p>Free to start. No trackers, no lock-in — just your files on your server.</p>
+        <div class="landing-container">
+          <section class="hero">
+            <div class="hero-copy">
+              <div class="hero-badge"><svg class="icon"><use href="#i-shield"/></svg><span>Self-hosted. Private. Yours.</span></div>
+              <h1>Your private cloud,<br /><span class="text-gradient">under your control.</span></h1>
+              <p class="hero-sub">Frostyy Cloud is self-hosted storage for individuals, freelancers, and teams. Store files, share securely, and manage everything from your own dashboard &mdash; on hardware you control.</p>
+              <div class="hero-actions">
+                <button id="signup-cta" class="btn btn-lg">Get started <svg class="icon"><use href="#i-arrow-right"/></svg></button>
+                <button class="ghost-btn btn-lg" data-auth="login">Log in</button>
+              </div>
+              <ul class="hero-trust">
+                <li><svg class="icon"><use href="#i-shield"/></svg> Self-hosted</li>
+                <li><svg class="icon"><use href="#i-lock"/></svg> Invite-only</li>
+                <li><svg class="icon"><use href="#i-server"/></svg> Docker ready</li>
+                <li><svg class="icon"><use href="#i-drive"/></svg> Raspberry Pi ready</li>
+              </ul>
             </div>
-            <button class="btn btn-lg" data-auth="signup">Create your account <svg class="icon"><use href="#i-arrow-right"/></svg></button>
-          </div>
-        </section>
 
-        <footer class="landing-footer">
-          <div class="brand brand-sm">
-            <span class="brand-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
-            <span class="brand-name">Frostyy&nbsp;Cloud</span>
-          </div>
-          <span class="muted small">Self-hosted cloud storage &middot; Built for modern homelabs</span>
-        </footer>
+            <div class="lp-preview" aria-hidden="true">
+              <div class="lp-topbar">
+                <div class="lp-brand">
+                  <span class="brand-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
+                  <span>Frostyy Cloud</span>
+                </div>
+                <div class="lp-search"><svg class="icon"><use href="#i-search"/></svg><span>Search files&hellip;</span><kbd>&#8984;K</kbd></div>
+                <div class="lp-topbar-actions">
+                  <span class="lp-upload-btn"><svg class="icon"><use href="#i-plus"/></svg> Upload</span>
+                  <span class="lp-avatar">FC</span>
+                </div>
+              </div>
+              <div class="lp-body">
+                <div class="lp-sidebar">
+                  <div class="lp-nav-item active"><svg class="icon"><use href="#i-grid"/></svg> Overview</div>
+                  <div class="lp-nav-item"><svg class="icon"><use href="#i-folder"/></svg> Files</div>
+                  <div class="lp-nav-item"><svg class="icon"><use href="#i-link"/></svg> Shares</div>
+                  <div class="lp-nav-item"><svg class="icon"><use href="#i-activity"/></svg> Activity</div>
+                  <div class="lp-nav-item"><svg class="icon"><use href="#i-users"/></svg> Users</div>
+                  <div class="lp-nav-item"><svg class="icon"><use href="#i-sliders"/></svg> Settings</div>
+                  <div class="lp-sidebar-foot">
+                    <div class="lp-storage">
+                      <span class="lp-label">Storage</span>
+                      <span class="lp-storage-value">128.4 GB / 1 TB</span>
+                      <span class="lp-mini-bar"><span style="width:12.5%"></span></span>
+                    </div>
+                    <div class="lp-server">
+                      <span class="lp-label">Your Server</span>
+                      <span class="lp-online"><span class="lp-dot"></span> Online</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="lp-main">
+                  <div class="lp-stats">
+                    <div class="lp-card lp-storage-card">
+                      <span class="lp-label">Storage Overview</span>
+                      <div class="lp-storage-row"><strong>128.4 GB</strong><span class="lp-muted">/ 1 TB used</span><span class="lp-percent">12.5%</span></div>
+                      <span class="lp-mini-bar"><span style="width:12.5%"></span></span>
+                      <span class="lp-muted lp-xs">871.6 GB free</span>
+                    </div>
+                    <div class="lp-card lp-stat">
+                      <span class="lp-label">Files</span>
+                      <strong>3,420</strong>
+                      <span class="lp-trend">+23 this week</span>
+                    </div>
+                    <div class="lp-card lp-stat">
+                      <span class="lp-label">Shares</span>
+                      <strong>86</strong>
+                      <span class="lp-trend">+8 this week</span>
+                    </div>
+                    <div class="lp-card lp-stat">
+                      <span class="lp-label">Users</span>
+                      <strong>12</strong>
+                      <span class="lp-trend">+2 this week</span>
+                    </div>
+                  </div>
+                  <div class="lp-card lp-files">
+                    <div class="lp-files-head"><span>Recent Files</span><span class="lp-pill">View all</span></div>
+                    <div class="lp-files-cols"><span>Name</span><span>Size</span><span>Modified</span><span></span></div>
+                    <div class="lp-file-row"><span class="lp-file-name"><svg class="icon icon-image"><use href="#i-image"/></svg> brand-refresh.png</span><span>2.4 MB</span><span>Today</span><svg class="icon lp-more"><use href="#i-more"/></svg></div>
+                    <div class="lp-file-row"><span class="lp-file-name"><svg class="icon icon-pdf"><use href="#i-file-text"/></svg> proposal-v3.pdf</span><span>860 KB</span><span>Yesterday</span><svg class="icon lp-more"><use href="#i-more"/></svg></div>
+                    <div class="lp-file-row"><span class="lp-file-name"><svg class="icon icon-archive"><use href="#i-archive"/></svg> client-assets.zip</span><span>48 MB</span><span>Tuesday</span><svg class="icon lp-more"><use href="#i-more"/></svg></div>
+                    <div class="lp-file-row"><span class="lp-file-name"><svg class="icon icon-doc"><use href="#i-file-text"/></svg> project-brief.docx</span><span>112 KB</span><span>May 12</span><svg class="icon lp-more"><use href="#i-more"/></svg></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="landing-features">
+            <div class="section-head centered">
+              <span class="section-eyebrow">Built for the way you work</span>
+              <h2>Everything you need. Nothing you don&rsquo;t.</h2>
+            </div>
+            <div class="feature-grid">
+              <div class="card feature-card">
+                <span class="feature-icon"><svg class="icon"><use href="#i-folder"/></svg></span>
+                <h3>Private file storage</h3>
+                <p class="muted">Keep files, projects, and client assets safe with secure uploads, version history, and previews.</p>
+              </div>
+              <div class="card feature-card">
+                <span class="feature-icon"><svg class="icon"><use href="#i-link"/></svg></span>
+                <h3>Share with confidence</h3>
+                <p class="muted">Create private share links with passwords, expirations, and download controls.</p>
+              </div>
+              <div class="card feature-card">
+                <span class="feature-icon"><svg class="icon"><use href="#i-users"/></svg></span>
+                <h3>Admin controls</h3>
+                <p class="muted">Manage users, monitor activity, and enforce policies &mdash; all from your dashboard.</p>
+              </div>
+              <div class="card feature-card">
+                <span class="feature-icon"><svg class="icon"><use href="#i-server"/></svg></span>
+                <h3>Runs on your hardware</h3>
+                <p class="muted">Self-host on any machine you own. Docker, Raspberry Pi, or your favorite home server.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="landing-cta">
+            <div class="cta-card">
+              <div class="cta-copy">
+                <span class="cta-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
+                <div>
+                  <h2>Own your cloud. Start in minutes.</h2>
+                  <p>Self-hosted, private, and built to grow with you.</p>
+                </div>
+              </div>
+              <div class="cta-actions">
+                <button class="btn btn-lg" data-auth="signup">Get started <svg class="icon"><use href="#i-arrow-right"/></svg></button>
+                <a class="cta-link" href="https://github.com/FrostyyDev1/frostyy-cloud" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+              </div>
+            </div>
+          </section>
+
+          <footer class="landing-footer">
+            <div class="brand brand-sm">
+              <span class="brand-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
+              <span class="brand-name">Frostyy&nbsp;Cloud</span>
+            </div>
+            <span class="muted small">Self-hosted cloud storage &middot; Built for modern homelabs</span>
+          </footer>
+        </div>
       </div>
 
       <!-- ============ AUTH ============ -->
       <div id="auth-screen" class="auth-shell hidden">
-        <div class="auth-split">
-          <div class="auth-brand-panel">
-            <div class="brand auth-brand">
+        <div class="auth-glow" aria-hidden="true"></div>
+        <div class="auth-wrap">
+          <div class="auth-topbar">
+            <div class="brand">
               <span class="brand-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
               <span class="brand-name">Frostyy&nbsp;Cloud</span>
             </div>
-            <h1 class="auth-headline">Your private cloud,<br /><span class="text-accent">under your control.</span></h1>
-            <p class="auth-subtext">Secure, self-hosted storage for everything that matters.</p>
-            <ul class="auth-feature-list">
-              <li>
-                <span class="auth-feature-icon"><svg class="icon"><use href="#i-shield"/></svg></span>
-                <div><strong>Private storage</strong><span>Your data is always private and protected.</span></div>
-              </li>
-              <li>
-                <span class="auth-feature-icon"><svg class="icon"><use href="#i-cloud"/></svg></span>
-                <div><strong>Access anywhere</strong><span>Reach your files from any device, anytime.</span></div>
-              </li>
-              <li>
-                <span class="auth-feature-icon"><svg class="icon"><use href="#i-zap"/></svg></span>
-                <div><strong>Fast &amp; reliable</strong><span>Built for speed, uptime, and peace of mind.</span></div>
-              </li>
-            </ul>
-            <div class="auth-illustration" aria-hidden="true">
-              <div class="auth-illustration-tile tile-cloud"><svg class="icon"><use href="#i-cloud"/></svg></div>
-              <div class="auth-illustration-tile tile-server"><svg class="icon"><use href="#i-server"/></svg></div>
-              <div class="auth-illustration-tile tile-lock"><svg class="icon"><use href="#i-lock"/></svg></div>
-              <div class="auth-illustration-tile tile-folder"><svg class="icon"><use href="#i-folder"/></svg></div>
-            </div>
+            <button id="auth-back" class="auth-back" type="button"><svg class="icon"><use href="#i-arrow-left"/></svg> Back to home</button>
           </div>
 
-          <div class="auth-card-panel">
-            <button id="auth-back" class="auth-back" type="button"><svg class="icon"><use href="#i-arrow-left"/></svg> Back to home</button>
-            <div class="auth-card">
+          <div class="auth-panel">
+            <div class="auth-brand-panel">
+              <div>
+                <h1 class="auth-headline">Your private cloud,<br /><span class="text-gradient">under your control.</span></h1>
+                <p class="auth-subtext">Secure, self-hosted storage for everything that matters.</p>
+              </div>
+              <ul class="auth-feature-list">
+                <li>
+                  <span class="auth-feature-icon"><svg class="icon"><use href="#i-shield"/></svg></span>
+                  <div><strong>Private storage</strong><span>Your data is always private and protected.</span></div>
+                </li>
+                <li>
+                  <span class="auth-feature-icon"><svg class="icon"><use href="#i-cloud"/></svg></span>
+                  <div><strong>Access anywhere</strong><span>Reach your files from any device, anytime.</span></div>
+                </li>
+                <li>
+                  <span class="auth-feature-icon"><svg class="icon"><use href="#i-zap"/></svg></span>
+                  <div><strong>Fast &amp; reliable</strong><span>Built for speed, uptime, and peace of mind.</span></div>
+                </li>
+              </ul>
+              <div class="auth-orbit" aria-hidden="true">
+                <span class="auth-orbit-ring ring-outer"></span>
+                <span class="auth-orbit-ring ring-inner"></span>
+                <span class="auth-orbit-center"><svg class="icon"><use href="#i-cloud"/></svg></span>
+                <span class="auth-orbit-spin spin-inner">
+                  <span class="auth-orbit-sat"><svg class="icon"><use href="#i-folder"/></svg></span>
+                </span>
+                <span class="auth-orbit-spin spin-outer">
+                  <span class="auth-orbit-sat"><svg class="icon"><use href="#i-lock"/></svg></span>
+                </span>
+                <span class="auth-orbit-spin spin-outer-2">
+                  <span class="auth-orbit-sat"><svg class="icon"><use href="#i-file"/></svg></span>
+                </span>
+              </div>
+            </div>
+
+            <div class="auth-card-panel">
+              <div class="auth-card">
               <div class="auth-toggle" role="tablist">
                 <button type="button" class="auth-toggle-btn active" data-auth-mode="login" role="tab">Log in</button>
                 <button type="button" class="auth-toggle-btn" data-auth-mode="signup" role="tab">Sign up</button>
@@ -233,11 +329,13 @@
                   <button id="auth-submit" class="btn btn-block" type="submit">Continue <svg class="icon"><use href="#i-arrow-right"/></svg></button>
                 </div>
               </form>
-              <p id="auth-switch" class="small muted auth-switch-row"></p>
+                <p id="auth-switch" class="small muted auth-switch-row"></p>
+              </div>
+              <p class="auth-foot muted small"><svg class="icon"><use href="#i-lock"/></svg> Your data is encrypted and secure</p>
             </div>
-            <p class="auth-foot muted small"><svg class="icon"><use href="#i-lock"/></svg> Your data is encrypted and secure</p>
-            <p class="auth-legal-links small muted">Privacy Policy <span aria-hidden="true">&middot;</span> Terms of Service <span aria-hidden="true">&middot;</span> Contact</p>
           </div>
+
+          <p class="auth-legal-links small muted">Privacy Policy <span aria-hidden="true">&middot;</span> Terms of Service <span aria-hidden="true">&middot;</span> Contact</p>
         </div>
       </div>
 
