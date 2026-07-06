@@ -323,7 +323,11 @@ function getUserFromCookie(req) {
   const token = SESSION_SECRET ? req.signedCookies?.token : req.cookies?.token;
   if (!token) return null;
   const users = readUsers();
-  return users.find((user) => user.token === token) || null;
+  const user = users.find((entry) => entry.token === token) || null;
+  // A disabled account's existing session is invalidated immediately, not
+  // just blocked at the next login.
+  if (user && user.disabled) return null;
+  return user;
 }
 
 function generateToken() {
@@ -385,6 +389,26 @@ function resolveUserQuotaMb(user) {
     if (custom !== null) return custom;
   }
   return (user.role || 'user') === 'admin' ? ADMIN_USER_QUOTA_MB : STORAGE_QUOTA_MB;
+}
+
+/** 'custom' if a per-user override is set, otherwise which default tier applies. */
+function resolveUserQuotaSource(user) {
+  if (user.quotaMb !== undefined && user.quotaMb !== null && parseQuotaMb(user.quotaMb, null) !== null) {
+    return 'custom';
+  }
+  return (user.role || 'user') === 'admin' ? 'admin-default' : 'user-default';
+}
+
+/** True if this account's admin status comes from ADMIN_EMAILS (permanent/
+ * recoverable via env var) rather than a manual promotion via the Admin panel. */
+function isAdminByEnv(user) {
+  return matchesAdminEmail([user.email, user.username], ADMIN_EMAILS);
+}
+
+/** Number of accounts that are currently admin AND not disabled, optionally
+ * excluding one username - used to prevent locking yourself out of admin. */
+function countActiveAdmins(users, excludeUsername = null) {
+  return users.filter((u) => (u.role || 'user') === 'admin' && !u.disabled && u.username !== excludeUsername).length;
 }
 
 function getStorageSummary(user) {
@@ -601,13 +625,14 @@ app.post('/api/auth/login', authRateLimit, async (req, res) => {
       if (!user) return { result: { error: 'Invalid credentials' } };
       const valid = await bcrypt.compare(password, user.password);
       if (!valid) return { result: { error: 'Invalid credentials' } };
+      if (user.disabled) return { result: { error: 'This account has been disabled. Contact an administrator.', status: 403 } };
       const token = generateToken();
       user.token = token;
       ensureUserProfile(user);
       return { result: { user } };
     });
 
-    if (outcome.error) return res.status(401).json({ error: outcome.error });
+    if (outcome.error) return res.status(outcome.status || 401).json({ error: outcome.error });
     res.cookie('token', outcome.user.token, cookieOptions());
     res.json({ ok: true, user: toUserSafe(outcome.user) });
   } catch (err) {
@@ -1062,18 +1087,132 @@ app.get('/api/admin/users', (req, res) => {
   const rows = users.map((u) => {
     const owned = storageItems.filter((item) => item.owner === u.username && !item.trashed);
     const lastActivity = activities.find((entry) => entry.username === u.username);
+    const role = u.role || 'user';
     return {
       username: u.username,
       displayName: u.displayName || u.username,
       email: u.email || '',
-      role: u.role || 'user',
+      role,
+      isAdmin: role === 'admin',
+      adminSource: role === 'admin' ? (isAdminByEnv(u) ? 'env' : 'manual') : null,
+      disabled: !!u.disabled,
       fileCount: owned.filter((item) => item.type === 'file').length,
       storageUsed: owned.reduce((sum, item) => sum + (item.size || 0), 0),
       quotaMb: quotaMbForClient(resolveUserQuotaMb(u)),
+      quotaSource: resolveUserQuotaSource(u),
       lastActivityAt: lastActivity ? lastActivity.createdAt : null
     };
   });
   res.json({ users: rows });
+});
+
+/** Finds a user by username, case-insensitively. Returns null if not found. */
+function findUserByUsername(users, username) {
+  const target = String(username || '').toLowerCase();
+  return users.find((u) => u.username.toLowerCase() === target) || null;
+}
+
+const ALLOWED_QUOTA_PRESETS_MB = [5120, 20480, 51200, 102400];
+
+app.post('/api/admin/users/:username/quota', async (req, res) => {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+  const { quotaMb } = req.body || {};
+
+  const outcome = await withUsersLock((users) => {
+    const target = findUserByUsername(users, req.params.username);
+    if (!target) return { result: { error: 'User not found', status: 404 } };
+
+    // A falsy/omitted value (or the literal string "default") clears the
+    // override so the account falls back to its role-based quota.
+    if (quotaMb === null || quotaMb === undefined || quotaMb === '' || quotaMb === 'default') {
+      delete target.quotaMb;
+      return { result: { user: target, cleared: true } };
+    }
+
+    const trimmed = String(quotaMb).trim().toLowerCase();
+    const isPreset = ALLOWED_QUOTA_PRESETS_MB.includes(Number(quotaMb));
+    const isUnlimited = trimmed === 'unlimited' || trimmed === '-1';
+    const isCustomPositive = Number.isFinite(Number(quotaMb)) && Number(quotaMb) > 0;
+    if (!isPreset && !isUnlimited && !isCustomPositive) {
+      return { result: { error: 'Quota must be a positive number of MB, or "unlimited"', status: 400 } };
+    }
+    target.quotaMb = isUnlimited ? -1 : Number(quotaMb);
+    return { result: { user: target } };
+  });
+
+  if (outcome.error) return res.status(outcome.status || 400).json({ error: outcome.error });
+  const resolved = quotaMbForClient(resolveUserQuotaMb(outcome.user));
+  addActivity(admin, outcome.cleared ? 'cleared custom quota' : 'set custom quota', { targetUser: outcome.user.username, quotaMb: resolved });
+  console.log(`[admin] ${admin.username} ${outcome.cleared ? 'cleared' : 'set'} quota for ${outcome.user.username}${outcome.cleared ? '' : ` -> ${formatMb(resolved === -1 ? Infinity : resolved)}`}`);
+  res.json({ ok: true, quotaMb: resolved, quotaSource: resolveUserQuotaSource(outcome.user) });
+});
+
+app.post('/api/admin/users/:username/role', async (req, res) => {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+  const nextRole = req.body?.role === 'admin' ? 'admin' : req.body?.role === 'user' ? 'user' : null;
+  if (!nextRole) return res.status(400).json({ error: 'role must be "admin" or "user"' });
+
+  const outcome = await withUsersLock((users) => {
+    const target = findUserByUsername(users, req.params.username);
+    if (!target) return { result: { error: 'User not found', status: 404 } };
+    if (target.username === admin.username) {
+      return { result: { error: 'You cannot change your own role. Ask another admin, or use ADMIN_EMAILS.', status: 400 } };
+    }
+    if (nextRole === 'user' && (target.role || 'user') === 'admin' && countActiveAdmins(users, target.username) === 0) {
+      return { result: { error: 'Cannot demote the last remaining admin.', status: 400 } };
+    }
+    target.role = nextRole;
+    const envLocked = isAdminByEnv(target);
+    return { result: { user: target, envLocked: nextRole === 'user' && envLocked } };
+  });
+
+  if (outcome.error) return res.status(outcome.status || 400).json({ error: outcome.error });
+  addActivity(admin, `${nextRole === 'admin' ? 'promoted' : 'demoted'} user`, { targetUser: outcome.user.username, role: nextRole });
+  console.log(`[admin] ${admin.username} set role=${nextRole} for ${outcome.user.username}`);
+  res.json({
+    ok: true,
+    role: outcome.user.role,
+    note: outcome.envLocked ? 'This account is listed in ADMIN_EMAILS and will automatically become admin again on next login.' : null
+  });
+});
+
+app.post('/api/admin/users/:username/disable', async (req, res) => {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+  const outcome = await withUsersLock((users) => {
+    const target = findUserByUsername(users, req.params.username);
+    if (!target) return { result: { error: 'User not found', status: 404 } };
+    if (target.username === admin.username) {
+      return { result: { error: 'You cannot disable your own account.', status: 400 } };
+    }
+    if ((target.role || 'user') === 'admin' && countActiveAdmins(users, target.username) === 0) {
+      return { result: { error: 'Cannot disable the last remaining admin.', status: 400 } };
+    }
+    target.disabled = true;
+    target.token = null;
+    return { result: { user: target } };
+  });
+  if (outcome.error) return res.status(outcome.status || 400).json({ error: outcome.error });
+  addActivity(admin, 'disabled user', { targetUser: outcome.user.username });
+  console.log(`[admin] ${admin.username} disabled ${outcome.user.username}`);
+  res.json({ ok: true, disabled: true });
+});
+
+app.post('/api/admin/users/:username/enable', async (req, res) => {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+  const outcome = await withUsersLock((users) => {
+    const target = findUserByUsername(users, req.params.username);
+    if (!target) return { result: { error: 'User not found', status: 404 } };
+    target.disabled = false;
+    return { result: { user: target } };
+  });
+  if (outcome.error) return res.status(outcome.status || 400).json({ error: outcome.error });
+  addActivity(admin, 'enabled user', { targetUser: outcome.user.username });
+  console.log(`[admin] ${admin.username} enabled ${outcome.user.username}`);
+  res.json({ ok: true, disabled: false });
 });
 
 app.get('/api/files/:id/preview', (req, res) => {
@@ -1252,4 +1391,4 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
 }
 
-export { app, parseAdminEmailList, matchesAdminEmail };
+export { app, parseAdminEmailList, matchesAdminEmail, resolveUserQuotaSource, resolveUserQuotaMb, countActiveAdmins };

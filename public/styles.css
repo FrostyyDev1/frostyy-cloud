@@ -1092,6 +1092,12 @@ select.input, .select {
 .file-table .col-actions .file-actions { margin-top: 0; justify-content: flex-end; flex-wrap: nowrap; }
 .file-table .muted-cell { color: var(--muted); }
 .file-table td.col-select { width: 34px; }
+.admin-users-toolbar { margin-bottom: var(--sp-3); }
+.admin-users-toolbar .input { max-width: 320px; }
+.admin-row-actions { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+.admin-row-actions .admin-quota-select { padding: 4px 8px; font-size: var(--fs-xs); }
+.admin-row-actions .ghost-btn { padding: 4px 9px; font-size: var(--fs-xs); }
+.badge.danger { color: var(--danger); border-color: var(--danger-soft); background: var(--danger-soft); }
 
 /* Dropzone */
 .dropzone {

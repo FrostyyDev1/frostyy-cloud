@@ -16,7 +16,7 @@ Built as a homelab project and now polished toward private/public beta quality.
 - Image/PDF preview, public share links with copy/disable controls and optional expiration
 - Favorites, Recent, and a Trash with configurable auto-purge (restore or delete forever any time before that)
 - Settings: display name, email, password, theme (light/dark/system), storage summary, plan info, About/version
-- Admin dashboard with per-user storage/file breakdown (admin-only)
+- Admin dashboard with per-user storage/file breakdown, search, per-user quota overrides, promote/demote, and disable/enable (admin-only)
 - Invite-only registration mode for controlled public/beta access
 - Concurrency-safe data layer: JSON writes are locked and atomic, so simultaneous requests can't corrupt or clobber each other's data
 - Persistent storage via Docker volumes/bind mounts — uploads and accounts survive container restarts and rebuilds
@@ -45,7 +45,6 @@ Built as a homelab project and now polished toward private/public beta quality.
 - **Metadata storage is JSON files, not a database.** Fine for a homelab or a small private beta; for real public use with many concurrent users, migrate to SQLite or PostgreSQL — the locking layer reduces risk but doesn't replace proper transactional storage at scale.
 - **Billing is not connected.** Plans page is a professional placeholder (Free/Self-hosted is real, Pro/Business are "coming soon"). Real billing needs Stripe (or similar), invoicing, plan-based quota enforcement, cancellation flow, and updated Terms/Privacy — none of that is built.
 - **Account deletion is a placeholder.** Requesting deletion is logged but does not remove the account or its data, because a safe implementation needs to also handle owned files, shares, and admin implications.
-- **Admin destructive actions (suspend/delete user) are visible but disabled** in the UI — not wired to anything, on purpose, until they can be implemented safely.
 - **Public exposure requires deliberate setup**: HTTPS via a reverse proxy, `SESSION_SECRET` set, `REGISTRATION_MODE` set to `invite` or `disabled`, backups in place, and a review of the checklist below.
 
 ## Local development
@@ -147,9 +146,19 @@ Whichever you choose, once real HTTPS is in front of the app:
 | `MAINTENANCE_MODE` | `false` | When `true`, non-admin API requests get a 503 maintenance response |
 
 ## Admin setup
-The **first account ever registered** automatically becomes admin. To promote additional (or existing) accounts without touching JSON by hand, add their email to `ADMIN_EMAILS` and have them log in again. The Admin dashboard (sidebar → Admin) shows total users/files/storage and a per-user breakdown; destructive actions there are intentionally disabled placeholders.
+The **first account ever registered** automatically becomes admin. `ADMIN_EMAILS` remains the way to grant *permanent* admin recovery access (see below) — but day-to-day user management (quotas, promote/demote, disable/enable) is done from the Admin dashboard itself, no `.env` edits or restarts required.
 
-### How to make yourself admin
+### Managing users from the Admin panel
+Sidebar → Admin → Users gives you, per account: role/admin badge (and whether it's `env`-locked via `ADMIN_EMAILS` or a manual promotion), storage used vs. quota and where that quota comes from (custom override, admin default, or user default), file count, and last activity. Search by email or display name to filter the list. From there you can:
+- **Set a custom quota** — pick a preset (5 GB / 20 GB / 50 GB / 100 GB / Unlimited) and click Set. This overrides that account's role-based default.
+- **Clear a custom quota** — select "Default" and click Set to fall back to the normal admin/user default quota again.
+- **Promote/demote** — toggles the `admin` role. You can't change your own role (ask another admin, or use `ADMIN_EMAILS`), and the last remaining active admin can't be demoted, so you can't lock yourself out. Demoting an `ADMIN_EMAILS`-listed account shows a note that it will auto-repromote on next login — remove it from `ADMIN_EMAILS` first if you want the demotion to stick.
+- **Disable/enable** — a disabled account is immediately signed out and can't log back in until re-enabled. You can't disable your own account, and (like demote) you can't disable the last remaining active admin.
+
+All of this is admin-only server-side (`requireAdmin` gate on every `/api/admin/*` route) — a non-admin session gets a 403, not just a hidden button.
+
+### How to make yourself admin (emergency/permanent recovery)
+Use this for your very first admin account, or to recover admin access if every admin account has been demoted/disabled. For everything else, use the Admin panel above.
 1. Open `.env` (create it first with `cp .env.example .env` if you haven't).
 2. Set:
    ```bash
@@ -272,6 +281,5 @@ Before exposing this beyond your home network:
 - Migrate metadata from JSON files to SQLite/PostgreSQL for heavier public use
 - Real billing (Stripe), plan-based quota enforcement, invoicing
 - Safe, real account deletion (including owned files and shares)
-- Safe admin suspend/delete-user actions
 - Password-protected share links
 - Folder drag-and-drop between cards (currently move works via the "Move to…" picker only)

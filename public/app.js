@@ -19,7 +19,9 @@ const state = {
   pageSize: 12,
   maxFileSizeMb: 20,
   storageQuotaMb: 5120,
-  themePreference: 'dark'
+  themePreference: 'dark',
+  adminUsersRaw: [],
+  adminUsersSearch: ''
 };
 
 const els = {};
@@ -96,6 +98,7 @@ function bindElements() {
   els.supportPage = document.getElementById('support-page');
   els.activityPage = document.getElementById('activity-page');
   els.adminPage = document.getElementById('admin-page');
+  els.adminUsersSearch = document.getElementById('admin-users-search');
   els.globalSearchInput = document.getElementById('global-search-input');
   els.sortSelect = document.getElementById('sort-select');
   els.filterSelect = document.getElementById('filter-select');
@@ -181,6 +184,7 @@ function bindEvents() {
     });
   }
 
+  if (els.adminUsersSearch) els.adminUsersSearch.addEventListener('input', (e) => { state.adminUsersSearch = e.target.value; renderAdminUsersFiltered(); });
   if (els.sortSelect) els.sortSelect.addEventListener('change', (e) => { state.sortBy = e.target.value; renderFiles(); });
   if (els.filterSelect) els.filterSelect.addEventListener('change', (e) => { state.filterType = e.target.value; state.currentPage = 1; renderFiles(); });
   els.viewToggleGrid?.addEventListener('click', () => { state.showGrid = true; state.currentPage = 1; renderFiles(); updateViewToggleButtons(); });
@@ -723,25 +727,142 @@ async function loadAdminUsers() {
     const res = await fetch('/api/admin/users');
     const data = await res.json();
     if (!res.ok) return;
-    renderAdminUsers(data.users || []);
+    state.adminUsersRaw = data.users || [];
+    renderAdminUsersFiltered();
   } catch {
     // ignore - admin overview stats still render
   }
 }
 
+function renderAdminUsersFiltered() {
+  const query = state.adminUsersSearch.trim().toLowerCase();
+  const filtered = !query
+    ? state.adminUsersRaw
+    : state.adminUsersRaw.filter((u) =>
+        (u.displayName || '').toLowerCase().includes(query) ||
+        (u.username || '').toLowerCase().includes(query) ||
+        (u.email || '').toLowerCase().includes(query)
+      );
+  renderAdminUsers(filtered);
+}
+
+const QUOTA_PRESET_OPTIONS = [
+  { value: '', label: 'Default' },
+  { value: '5120', label: '5 GB' },
+  { value: '20480', label: '20 GB' },
+  { value: '51200', label: '50 GB' },
+  { value: '102400', label: '100 GB' },
+  { value: '-1', label: 'Unlimited' }
+];
+
+function quotaLabel(quotaMb) {
+  if (isUnlimitedQuota(quotaMb)) return 'Unlimited';
+  return formatGb(quotaMb * 1024 * 1024);
+}
+
+function quotaSourceLabel(source) {
+  if (source === 'custom') return 'Custom override';
+  if (source === 'admin-default') return 'Admin default';
+  return 'User default';
+}
+
 function renderAdminUsers(users) {
   const tbody = document.getElementById('admin-users-table');
   if (!tbody) return;
+  if (!users.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="muted-cell">No users match your search.</td></tr>`;
+    return;
+  }
+
+  const isSelf = (u) => state.user && u.username.toLowerCase() === state.user.username.toLowerCase();
+  const currentSelectValue = (u) => (u.quotaSource === 'custom' && QUOTA_PRESET_OPTIONS.some((o) => o.value === String(u.quotaMb)) ? String(u.quotaMb) : '');
+
   tbody.innerHTML = users.map((u) => `
-    <tr>
+    <tr data-username="${escapeHtml(u.username)}">
       <td><strong>${escapeHtml(u.displayName)}</strong><div class="muted small">${escapeHtml(u.username)}</div></td>
-      <td>${u.role === 'admin' ? '<span class="badge">Admin</span>' : 'User'}</td>
+      <td>
+        ${u.isAdmin ? '<span class="badge">Admin</span>' : 'User'}
+        ${u.isAdmin && u.adminSource === 'env' ? '<div class="muted small">via ADMIN_EMAILS</div>' : ''}
+        ${u.disabled ? '<div class="badge danger small">Disabled</div>' : ''}
+      </td>
+      <td>
+        ${formatBytes(u.storageUsed)} / ${quotaLabel(u.quotaMb)}
+        <div class="muted small">${quotaSourceLabel(u.quotaSource)}</div>
+      </td>
       <td>${u.fileCount}</td>
-      <td>${formatBytes(u.storageUsed)}</td>
       <td class="muted-cell">${u.lastActivityAt ? new Date(u.lastActivityAt).toLocaleDateString() : '—'}</td>
-      <td class="col-actions"><button class="ghost-btn" type="button" disabled title="Not implemented yet">Manage</button></td>
+      <td class="col-actions">
+        <div class="admin-row-actions">
+          <select class="input select admin-quota-select" ${isSelf(u) ? 'disabled' : ''}>
+            ${QUOTA_PRESET_OPTIONS.map((o) => `<option value="${o.value}" ${o.value === currentSelectValue(u) ? 'selected' : ''}>${o.label}</option>`).join('')}
+          </select>
+          <button class="ghost-btn admin-quota-apply" type="button" ${isSelf(u) ? 'disabled' : ''}>Set</button>
+          <button class="ghost-btn admin-role-btn" type="button" ${isSelf(u) ? 'disabled title="You cannot change your own role"' : ''}>${u.isAdmin ? 'Demote' : 'Promote'}</button>
+          <button class="ghost-btn danger admin-disable-btn" type="button" ${isSelf(u) ? 'disabled title="You cannot disable your own account"' : ''}>${u.disabled ? 'Enable' : 'Disable'}</button>
+        </div>
+      </td>
     </tr>
   `).join('');
+
+  users.forEach((u) => {
+    const row = tbody.querySelector(`tr[data-username="${cssEscape(u.username)}"]`);
+    if (row) bindAdminUserRowActions(row, u);
+  });
+}
+
+function cssEscape(value) {
+  return window.CSS && CSS.escape ? CSS.escape(value) : String(value).replace(/["\\]/g, '\\$&');
+}
+
+function bindAdminUserRowActions(row, user) {
+  const quotaSelect = row.querySelector('.admin-quota-select');
+  const quotaBtn = row.querySelector('.admin-quota-apply');
+  const roleBtn = row.querySelector('.admin-role-btn');
+  const disableBtn = row.querySelector('.admin-disable-btn');
+
+  quotaBtn?.addEventListener('click', () => withBusyButton(quotaBtn, 'Setting…', async () => {
+    const value = quotaSelect.value;
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(user.username)}/quota`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quotaMb: value === '' ? 'default' : value })
+    });
+    const data = await res.json();
+    if (!res.ok) return showError(data.error || 'Could not update quota');
+    showMessage(`Quota updated for ${user.displayName || user.username}`);
+    loadAdminUsers();
+  }));
+
+  roleBtn?.addEventListener('click', () => {
+    const nextRole = user.isAdmin ? 'user' : 'admin';
+    const verb = nextRole === 'admin' ? 'Promote' : 'Demote';
+    openModal(`${verb} user`, `${verb} "${user.displayName || user.username}" ${nextRole === 'admin' ? 'to admin' : 'to a regular user'}?`, async () => {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(user.username)}/role`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: nextRole })
+      });
+      const data = await res.json();
+      if (!res.ok) return showError(data.error || 'Could not update role');
+      showMessage(data.note || `${verb}d ${user.displayName || user.username}`);
+      loadAdminUsers();
+    });
+  });
+
+  disableBtn?.addEventListener('click', () => {
+    const nextDisabled = !user.disabled;
+    const verb = nextDisabled ? 'Disable' : 'Enable';
+    const body = nextDisabled
+      ? `Disable "${user.displayName || user.username}"? They will be signed out immediately and unable to log back in until re-enabled.`
+      : `Re-enable "${user.displayName || user.username}"? They will be able to log in again.`;
+    openModal(`${verb} account`, body, async () => {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(user.username)}/${nextDisabled ? 'disable' : 'enable'}`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) return showError(data.error || `Could not ${verb.toLowerCase()} account`);
+      showMessage(`${verb}d ${user.displayName || user.username}`);
+      loadAdminUsers();
+    });
+  });
 }
 
 function populateSettingsForm() {

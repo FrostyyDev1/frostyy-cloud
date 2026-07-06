@@ -744,10 +744,13 @@
             </div>
 
             <div class="card">
-              <div class="section-title"><h3><svg class="icon"><use href="#i-users"/></svg> Users</h3><span class="small muted">Per-account breakdown &middot; read-only</span></div>
+              <div class="section-title"><h3><svg class="icon"><use href="#i-users"/></svg> Users</h3><span class="small muted">Manage roles, quotas and access</span></div>
+              <div class="toolbar-group admin-users-toolbar">
+                <input id="admin-users-search" class="input" type="search" placeholder="Search by email or name…" autocomplete="off" />
+              </div>
               <div class="file-table-wrap">
                 <table class="file-table">
-                  <thead><tr><th>User</th><th>Role</th><th>Files</th><th>Storage used</th><th>Last activity</th><th></th></tr></thead>
+                  <thead><tr><th>User</th><th>Role</th><th>Quota</th><th>Files</th><th>Last activity</th><th>Actions</th></tr></thead>
                   <tbody id="admin-users-table"></tbody>
                 </table>
               </div>
