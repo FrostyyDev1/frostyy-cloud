@@ -150,6 +150,88 @@ test('env admin (ADMIN_EMAILS) can list users in the admin panel, including them
   assert.ok(data.users.some((u) => u.username === 'admin@test.local'), 'admin should appear in their own users table');
 });
 
+async function adminCookie() {
+  const login = await fetch(`${BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ email: 'admin@test.local', password: 'password123' })
+  });
+  return cookieFrom(login);
+}
+
+async function nonAdminCookie() {
+  // Idempotent: register succeeds the first time, 409s after; login always works.
+  await fetch(`${BASE}/api/auth/register`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ email: 'plain@test.local', password: 'password123' })
+  });
+  const login = await fetch(`${BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ email: 'plain@test.local', password: 'password123' })
+  });
+  return cookieFrom(login);
+}
+
+test('health endpoint requires admin and returns only safe fields', async () => {
+  // no session -> 401, non-admin -> 403
+  assert.equal((await fetch(`${BASE}/api/admin/health`)).status, 401);
+  assert.equal((await fetch(`${BASE}/api/admin/health`, { headers: { Cookie: await nonAdminCookie() } })).status, 403);
+
+  const res = await fetch(`${BASE}/api/admin/health`, { headers: { Cookie: await adminCookie() } });
+  assert.equal(res.status, 200);
+  const body = await res.text();
+  const data = JSON.parse(body);
+
+  assert.ok(['healthy', 'warning', 'critical'].includes(data.summary.status));
+  assert.ok(Array.isArray(data.checks) && data.checks.length > 0);
+  assert.equal(data.info.version !== undefined, true);
+  assert.ok(data.info.users.total >= 2);
+
+  // Never leak secrets: the session secret value, bcrypt hashes, or tokens.
+  assert.ok(!body.includes('routes-test-secret'), 'health response must not contain the session secret');
+  assert.ok(!/\$2[abxy]\$/.test(body), 'health response must not contain password hashes');
+  assert.ok(!body.includes('tokenHash'), 'health response must not contain reset token hashes');
+});
+
+test('backup endpoints require admin', async () => {
+  const cookie = await nonAdminCookie();
+  assert.equal((await fetch(`${BASE}/api/admin/backups`, { headers: { Cookie: cookie } })).status, 403);
+  assert.equal((await fetch(`${BASE}/api/admin/backups`, { method: 'POST', headers: { Cookie: cookie } })).status, 403);
+  assert.equal((await fetch(`${BASE}/api/admin/backups/frostyy-backup-2026-07-07-000000.tar.gz`, { headers: { Cookie: cookie } })).status, 403);
+});
+
+test('backup lifecycle: create, list, download-name validation, delete', async () => {
+  const cookie = await adminCookie();
+
+  const create = await fetch(`${BASE}/api/admin/backups`, { method: 'POST', headers: { Cookie: cookie } });
+  assert.equal(create.status, 200, 'backup creation should succeed (requires tar on PATH)');
+  const created = await create.json();
+  assert.match(created.name, /^frostyy-backup-\d{4}-\d{2}-\d{2}-\d{6}\.tar\.gz$/);
+  assert.ok(created.size > 0);
+
+  const list = await fetch(`${BASE}/api/admin/backups`, { headers: { Cookie: cookie } });
+  const listed = await list.json();
+  assert.ok(listed.backups.some((b) => b.name === created.name), 'new backup should appear in the list');
+
+  // Path traversal attempts must never reach the filesystem.
+  for (const evil of ['..%2F..%2F.env', '..%5C..%5Cserver.js', encodeURIComponent('../data/users.json')]) {
+    const res = await fetch(`${BASE}/api/admin/backups/${evil}`, { headers: { Cookie: cookie } });
+    assert.equal(res.status, 404, `traversal name ${evil} should 404`);
+    const del = await fetch(`${BASE}/api/admin/backups/${evil}`, { method: 'DELETE', headers: { Cookie: cookie } });
+    assert.equal(del.status, 404, `traversal delete ${evil} should 404`);
+  }
+
+  const download = await fetch(`${BASE}/api/admin/backups/${created.name}`, { headers: { Cookie: cookie } });
+  assert.equal(download.status, 200);
+
+  const del = await fetch(`${BASE}/api/admin/backups/${created.name}`, { method: 'DELETE', headers: { Cookie: cookie } });
+  assert.equal(del.status, 200);
+  const after = await (await fetch(`${BASE}/api/admin/backups`, { headers: { Cookie: cookie } })).json();
+  assert.ok(!after.backups.some((b) => b.name === created.name), 'deleted backup should be gone');
+});
+
 test('upload stores the file and it appears in the file list', async () => {
   const login = await fetch(`${BASE}/api/auth/login`, {
     method: 'POST',

@@ -4,12 +4,15 @@
 //
 //   node scripts/audit-storage.mjs
 //   node scripts/audit-storage.mjs /path/to/project-root
+//   node scripts/audit-storage.mjs --strict     (exit 1 if issues are found)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot = process.argv[2] || path.join(__dirname, '..');
+const args = process.argv.slice(2);
+const strict = args.includes('--strict');
+const projectRoot = args.find((a) => !a.startsWith('--')) || path.join(__dirname, '..');
 const storageFile = path.join(projectRoot, 'data', 'storage.json');
 const uploadsRoot = path.join(projectRoot, 'uploads');
 
@@ -31,9 +34,11 @@ if (!Array.isArray(items)) {
 }
 
 const label = (item, i) => `#${i} id=${JSON.stringify(item.id ?? null)} name=${JSON.stringify(item.name ?? null)} owner=${JSON.stringify(item.owner ?? null)}`;
-const section = (title, rows) => {
+let issueCount = 0;
+const section = (title, rows, { isIssue = true } = {}) => {
   console.log(`\n${title}: ${rows.length ? '' : 'none'}`);
   rows.forEach((r) => console.log(`  - ${r}`));
+  if (isIssue) issueCount += rows.length;
 };
 
 const files = items.filter((i) => i.type === 'file');
@@ -93,7 +98,27 @@ section(
 
 section(
   'Records currently in trash',
-  trashed.map((item) => `${item.type} ${JSON.stringify(item.name)} (owner ${JSON.stringify(item.owner ?? null)}, trashed ${item.trashedAt || 'unknown date'})`)
+  trashed.map((item) => `${item.type} ${JSON.stringify(item.name)} (owner ${JSON.stringify(item.owner ?? null)}, trashed ${item.trashedAt || 'unknown date'})`),
+  { isIssue: false }
 );
 
+// Byte totals: what's physically on disk vs what the metadata claims.
+const diskFiles = walkFiles(uploadsRoot);
+const bytesOnDisk = diskFiles.reduce((sum, rel) => {
+  try { return sum + fs.statSync(path.join(uploadsRoot, rel)).size; } catch { return sum; }
+}, 0);
+const bytesInMetadata = files.reduce((sum, item) => sum + (Number(item.size) || 0), 0);
+const fmt = (bytes) => {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = bytes; let i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
+  return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
+};
+console.log(`\nBytes in uploads/ on disk:      ${fmt(bytesOnDisk)} (${bytesOnDisk} bytes, ${diskFiles.length} file(s))`);
+console.log(`Bytes referenced by metadata:   ${fmt(bytesInMetadata)} (${bytesInMetadata} bytes, ${files.length} record(s))`);
+
 console.log('\nThis audit is read-only. Back up data/ and uploads/ before cleaning anything up by hand.');
+if (strict && issueCount) {
+  console.error(`\n--strict: ${issueCount} issue(s) found.`);
+  process.exit(1);
+}

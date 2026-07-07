@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import multer from 'multer';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -105,6 +106,7 @@ if (IS_PRODUCTION && REGISTRATION_MODE === 'open') {
 const dataDir = path.join(__dirname, 'data');
 const uploadsRoot = path.join(__dirname, 'uploads');
 const publicDir = path.join(__dirname, 'public');
+const backupsDir = path.join(__dirname, 'backups');
 const usersFile = path.join(dataDir, 'users.json');
 const storageFile = path.join(dataDir, 'storage.json');
 const activityFile = path.join(dataDir, 'activity.json');
@@ -112,7 +114,7 @@ const ticketsFile = path.join(dataDir, 'tickets.json');
 const invitesFile = path.join(dataDir, 'invites.json');
 const passwordResetsFile = path.join(dataDir, 'password-resets.json');
 
-for (const dir of [dataDir, uploadsRoot, publicDir, path.join(uploadsRoot, '_tmp')]) {
+for (const dir of [dataDir, uploadsRoot, publicDir, backupsDir, path.join(uploadsRoot, '_tmp')]) {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -1402,6 +1404,238 @@ app.post('/api/admin/users/:username/reset-password', async (req, res) => {
   res.json({ ok: true, tempPassword });
 });
 
+// ---- Admin: health -----------------------------------------------------
+
+function isDirWritable(dir) {
+  try {
+    fs.accessSync(dir, fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Parse check without readJsonSafe's silent fallback - health needs to know. */
+function jsonFileHealth(filePath) {
+  if (!fs.existsSync(filePath)) return { exists: false, valid: false };
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    if (raw.trim()) JSON.parse(raw);
+    return { exists: true, valid: true };
+  } catch {
+    return { exists: true, valid: false };
+  }
+}
+
+/** Relative paths of every stored upload on disk, skipping multer's _tmp. */
+function listUploadedFilesOnDisk(dir = uploadsRoot, base = uploadsRoot) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      return dir === base && entry.name === '_tmp' ? [] : listUploadedFilesOnDisk(full, base);
+    }
+    return [path.relative(base, full)];
+  });
+}
+
+app.get('/api/admin/health', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  try {
+    const users = readUsers();
+    const storage = readStorage();
+    const fileRecords = storage.filter((i) => i.type === 'file');
+    const knownPaths = new Set(fileRecords.map((f) => f.storagePath && path.normalize(f.storagePath)).filter(Boolean));
+    const diskFiles = listUploadedFilesOnDisk();
+    const orphanedFiles = diskFiles.filter((rel) => !knownPaths.has(path.normalize(rel))).length;
+    const missingFiles = fileRecords.filter((f) => !f.storagePath || !fs.existsSync(path.resolve(uploadsRoot, f.storagePath))).length;
+
+    const dataWritable = isDirWritable(dataDir);
+    const uploadsWritable = isDirWritable(uploadsRoot);
+    const usersJson = jsonFileHealth(usersFile);
+    const storageJson = jsonFileHealth(storageFile);
+    const resetsJson = jsonFileHealth(passwordResetsFile);
+
+    let disk = null;
+    try {
+      const stats = fs.statfsSync(uploadsRoot);
+      disk = { totalBytes: stats.bsize * stats.blocks, freeBytes: stats.bsize * stats.bavail };
+    } catch { /* statfs unavailable on this platform - report as unknown */ }
+
+    const checks = [];
+    const add = (id, label, status, detail) => checks.push({ id, label, status, detail });
+
+    add('data-writable', 'Data directory writable', dataWritable ? 'ok' : 'critical', dataDir);
+    add('uploads-writable', 'Uploads directory writable', uploadsWritable ? 'ok' : 'critical', uploadsRoot);
+    add('users-json', 'users.json valid', usersJson.valid ? 'ok' : 'critical', usersJson.exists ? '' : 'file missing (will be recreated)');
+    add('storage-json', 'storage.json valid', storageJson.valid ? 'ok' : 'critical', storageJson.exists ? '' : 'file missing (will be recreated)');
+    add('resets-json', 'password-resets.json valid', resetsJson.valid ? 'ok' : 'warn', resetsJson.exists ? '' : 'file missing (will be recreated)');
+    add('missing-files', 'Metadata pointing at missing files', missingFiles === 0 ? 'ok' : 'warn',
+      missingFiles === 0 ? 'none' : `${missingFiles} record(s) - run scripts/audit-storage.mjs for details`);
+    add('orphaned-files', 'Uploaded files without metadata', orphanedFiles === 0 ? 'ok' : 'warn',
+      orphanedFiles === 0 ? 'none' : `${orphanedFiles} file(s) - run scripts/audit-storage.mjs for details`);
+    if (disk) {
+      const freeRatio = disk.totalBytes > 0 ? disk.freeBytes / disk.totalBytes : 1;
+      add('disk-space', 'Disk space', freeRatio < 0.02 ? 'critical' : freeRatio < 0.1 ? 'warn' : 'ok',
+        `${formatBytesServer(disk.freeBytes)} free of ${formatBytesServer(disk.totalBytes)}`);
+    } else {
+      add('disk-space', 'Disk space', 'warn', 'could not be determined on this platform');
+    }
+    if (!SESSION_SECRET) add('session-secret', 'Session secret', 'warn', 'SESSION_SECRET is not set - cookies are unsigned');
+
+    const critical = checks.filter((c) => c.status === 'critical').length;
+    const warnings = checks.filter((c) => c.status === 'warn').length;
+
+    res.json({
+      ok: true,
+      summary: { status: critical ? 'critical' : warnings ? 'warning' : 'healthy', critical, warnings },
+      checks,
+      info: {
+        version: APP_VERSION,
+        nodeEnv: process.env.NODE_ENV || 'development',
+        registrationMode: REGISTRATION_MODE,
+        secureCookies: COOKIE_SECURE,
+        port: Number(PORT),
+        hostPort: process.env.HOST_PORT || null,
+        dataDir,
+        uploadsDir: uploadsRoot,
+        maxUploadMb: MAX_FILE_SIZE_MB,
+        defaultQuotaMb: quotaMbForClient(resolveUserQuotaMb({ role: 'user' })),
+        adminQuotaMb: quotaMbForClient(resolveUserQuotaMb({ role: 'admin' })),
+        users: {
+          total: users.length,
+          admins: users.filter((u) => (u.role || 'user') === 'admin').length,
+          disabled: users.filter((u) => u.disabled).length
+        },
+        storage: {
+          records: storage.length,
+          files: fileRecords.length,
+          folders: storage.filter((i) => i.type === 'folder').length,
+          trash: storage.filter((i) => i.trashed).length,
+          uploadedFilesOnDisk: diskFiles.length,
+          orphanedFiles,
+          missingFiles
+        },
+        disk
+      }
+    });
+  } catch (err) {
+    console.error('Health report failed:', err.message);
+    res.status(500).json({ error: 'Could not build the health report. Check server logs.' });
+  }
+});
+
+function formatBytesServer(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) return 'unknown';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) { value /= 1024; i += 1; }
+  return `${value >= 10 || i === 0 ? Math.round(value) : value.toFixed(1)} ${units[i]}`;
+}
+
+// ---- Admin: backups ----------------------------------------------------
+// Backups are .tar.gz snapshots of data/ + uploads/ (plus a non-secret
+// config summary), written to backups/ via the system tar binary - present
+// in the node:alpine image, Raspberry Pi OS, and Windows 10+.
+
+const BACKUP_NAME_RE = /^frostyy-backup-\d{4}-\d{2}-\d{2}-\d{6}\.tar\.gz$/;
+
+function isValidBackupName(name) {
+  return BACKUP_NAME_RE.test(String(name || ''));
+}
+
+/** Resolves a validated backup name inside backups/, or null. Belt and
+ * braces against traversal: strict allowlist regex AND a contained path. */
+function resolveBackupPath(name) {
+  if (!isValidBackupName(name)) return null;
+  const resolved = path.resolve(backupsDir, name);
+  return resolved.startsWith(path.resolve(backupsDir) + path.sep) ? resolved : null;
+}
+
+let backupInProgress = false;
+
+app.get('/api/admin/backups', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  try {
+    const backups = fs.readdirSync(backupsDir)
+      .filter((name) => isValidBackupName(name))
+      .map((name) => {
+        const stat = fs.statSync(path.join(backupsDir, name));
+        return { name, size: stat.size, createdAt: stat.mtime.toISOString() };
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    res.json({ ok: true, backups, inProgress: backupInProgress });
+  } catch (err) {
+    console.error('Backup list failed:', err.message);
+    res.status(500).json({ error: 'Could not list backups. Check server logs.' });
+  }
+});
+
+app.post('/api/admin/backups', async (req, res) => {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+  if (backupInProgress) return res.status(409).json({ error: 'A backup is already in progress. Try again in a moment.' });
+  backupInProgress = true;
+
+  const stamp = new Date().toISOString().replace(/T/, '-').replace(/:/g, '').replace(/\..+$/, '');
+  const name = `frostyy-backup-${stamp}.tar.gz`;
+  const outPath = path.join(backupsDir, name);
+
+  try {
+    // Non-secret snapshot of how the instance was configured at backup time,
+    // stored inside data/ so it travels with the archive. Never the .env.
+    writeJsonAtomic(path.join(dataDir, 'backup-info.json'), {
+      appVersion: APP_VERSION,
+      createdAt: new Date().toISOString(),
+      registrationMode: REGISTRATION_MODE,
+      maxUploadMb: MAX_FILE_SIZE_MB,
+      defaultQuotaMb: quotaMbForClient(resolveUserQuotaMb({ role: 'user' })),
+      adminQuotaMb: quotaMbForClient(resolveUserQuotaMb({ role: 'admin' })),
+      trashRetentionDays: TRASH_RETENTION_DAYS
+    });
+
+    await new Promise((resolve, reject) => {
+      // Relative paths + cwd, never absolute: GNU tar on Windows parses the
+      // drive colon in "C:\..." as a remote-host separator and fails.
+      const tar = spawn('tar', ['-czf', `backups/${name}`, 'data', 'uploads'], { cwd: __dirname });
+      let stderr = '';
+      tar.stderr.on('data', (d) => { stderr += d.toString(); });
+      tar.on('error', (err) => reject(new Error(`tar could not be started: ${err.message}`)));
+      tar.on('close', (code) => (code === 0 ? resolve() : reject(new Error(stderr.trim() || `tar exited with code ${code}`))));
+    });
+
+    const stat = fs.statSync(outPath);
+    addActivity(admin, 'created backup', { name, size: stat.size });
+    console.log(`[backup] ${admin.username} created ${name} (${formatBytesServer(stat.size)})`);
+    res.json({ ok: true, name, size: stat.size, createdAt: stat.mtime.toISOString() });
+  } catch (err) {
+    console.error('Backup failed:', err.message);
+    try { if (fs.existsSync(outPath)) fs.unlinkSync(outPath); } catch { /* best effort */ }
+    res.status(500).json({ error: 'Backup failed. Check that tar is available on the server and there is enough disk space.' });
+  } finally {
+    backupInProgress = false;
+  }
+});
+
+app.get('/api/admin/backups/:filename', (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const backupPath = resolveBackupPath(req.params.filename);
+  if (!backupPath || !fs.existsSync(backupPath)) return res.status(404).json({ error: 'Backup not found' });
+  res.download(backupPath);
+});
+
+app.delete('/api/admin/backups/:filename', (req, res) => {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+  const backupPath = resolveBackupPath(req.params.filename);
+  if (!backupPath || !fs.existsSync(backupPath)) return res.status(404).json({ error: 'Backup not found' });
+  fs.unlinkSync(backupPath);
+  addActivity(admin, 'deleted backup', { name: req.params.filename });
+  console.log(`[backup] ${admin.username} deleted ${req.params.filename}`);
+  res.json({ ok: true });
+});
+
 app.get('/api/files/:id/preview', (req, res) => {
   const user = getUserFromCookie(req);
   if (!user) return res.status(401).json({ error: 'Not authenticated' });
@@ -1595,5 +1829,6 @@ export {
   loginIdentifierFrom,
   hashResetToken,
   findValidResetRecord,
-  generateTempPassword
+  generateTempPassword,
+  isValidBackupName
 };

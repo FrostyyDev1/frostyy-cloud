@@ -9,6 +9,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
+      - ./backups:/app/backups
     env_file:
       - .env
     environment:

@@ -1,6 +1,6 @@
 {
   "name": "self-hosted-cloud",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Frostyy Cloud - a self-hosted personal cloud storage app",
   "type": "module",
   "scripts": {

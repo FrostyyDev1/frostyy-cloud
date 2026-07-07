@@ -1568,6 +1568,57 @@ select.input, .select {
 .admin-row-actions .ghost-btn { padding: 4px 9px; font-size: var(--fs-xs); }
 .badge.danger { color: var(--danger); border-color: var(--danger-soft); background: var(--danger-soft); }
 
+/* Admin health card */
+.health-summary { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-4); font-weight: 650; }
+.health-summary.health-healthy { color: var(--success); }
+.health-summary.health-warning { color: var(--warning); }
+.health-summary.health-critical { color: var(--danger); }
+.health-checks { display: grid; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.health-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+}
+.health-row:last-child { border-bottom: none; }
+.health-dot { width: 9px; height: 9px; border-radius: var(--r-full); flex: none; align-self: center; }
+.health-dot.ok { background: var(--success); }
+.health-dot.warn { background: var(--warning); }
+.health-dot.critical { background: var(--danger); }
+.health-label { font-weight: 600; white-space: nowrap; }
+.health-detail { margin-left: auto; text-align: right; font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.health-info { margin-top: var(--sp-4); line-height: 1.7; }
+.backup-name { font-size: var(--fs-xs); font-weight: 600; overflow-wrap: anywhere; }
+
+/* Mobile-only helpers and the floating upload status pill */
+.mobile-only { display: none; }
+@media (max-width: 720px) {
+  .mobile-only { display: inline-flex; }
+}
+.upload-pill {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--sp-5) + env(safe-area-inset-bottom, 0px));
+  z-index: 250;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 9px 16px;
+  border-radius: var(--r-full);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  max-width: calc(100vw - var(--sp-6));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Dropzone */
 .dropzone {
   display: flex;
@@ -1669,7 +1720,10 @@ select.input, .select {
   border-radius: var(--r-lg);
   padding: var(--sp-6);
   width: min(420px, 100%);
+  max-height: min(85vh, 85dvh);
+  overflow-y: auto;
   box-shadow: var(--shadow);
+  overflow-wrap: anywhere;
 }
 .modal-lg { width: min(740px, 100%); }
 .modal-header {
@@ -2148,6 +2202,34 @@ select.input, .select {
   .user-chip { max-width: 140px; }
   .toast-region { left: var(--sp-4); right: var(--sp-4); max-width: none; }
   .upload-foot { flex-direction: column; align-items: flex-start; }
+
+  /* Touch ergonomics: comfortable tap targets, and 16px inputs so iOS
+     Safari doesn't zoom the page every time a field is focused. */
+  .btn, .ghost-btn { min-height: 40px; }
+  .icon-btn { width: 40px; height: 40px; }
+  .input, .textarea, .select { font-size: max(16px, var(--fs-base)); }
+  .file-actions .btn, .file-actions .ghost-btn, .file-actions .pill-btn,
+  .admin-row-actions .ghost-btn { min-height: 34px; }
+
+  /* Decrowd the topbar: folder creation stays available from the Files page
+     and dashboard quick actions; search stays but yields space. */
+  #topbar-new-folder-btn { display: none; }
+  .topbar-search { min-width: 0; }
+  .topbar-search .kbd-hint { display: none; }
+  .topbar-actions { gap: var(--sp-2); }
+
+  /* Breathing room above the iPhone Safari bottom bar. */
+  .page { padding-bottom: calc(var(--sp-6) + env(safe-area-inset-bottom, 0px)); }
+  .landing-footer { padding-bottom: calc(var(--sp-7) + env(safe-area-inset-bottom, 0px)); }
+  .auth-wrap { padding-bottom: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px)); }
+  .modal-backdrop { padding: var(--sp-4); padding-bottom: calc(var(--sp-4) + env(safe-area-inset-bottom, 0px)); }
+
+  /* Admin tables scroll sideways inside their card instead of stretching
+     the page; action clusters wrap into tidy rows. */
+  .file-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .admin-row-actions { justify-content: flex-start; }
+  .health-row { flex-wrap: wrap; }
+  .health-detail { margin-left: 0; text-align: left; width: 100%; padding-left: calc(9px + var(--sp-3)); }
 }
 
 @media (max-width: 480px) {
@@ -2157,6 +2239,11 @@ select.input, .select {
   .lp-stats { grid-template-columns: 1fr; }
   .lp-search { display: none; }
   .lp-topbar-actions { margin-left: auto; }
+  #user-name { display: none; }
+  .topbar-heading h2 { font-size: var(--fs-base); }
+  .files-header h2 { font-size: var(--fs-lg); }
+  .splash-mark, .splash-cloud { width: 72px; height: 72px; }
+  .dropzone-select-btn { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

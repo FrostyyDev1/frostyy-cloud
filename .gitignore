@@ -6,3 +6,4 @@ data/
 users.json
 storage.json
 invites.json
+backups/

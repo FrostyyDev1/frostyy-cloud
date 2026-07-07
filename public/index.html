@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0a1220" />
     <title>Frostyy Cloud</title>
     <link rel="stylesheet" href="/styles.css" />
@@ -500,6 +500,10 @@ $ docker compose up -d
             <div id="message-box"></div>
             <div id="error-box"></div>
           </div>
+          <div id="upload-status-pill" class="upload-pill hidden" role="status" aria-live="polite">
+            <span class="spinner" aria-hidden="true"></span>
+            <span id="upload-pill-text">Uploading…</span>
+          </div>
           <div id="loading-box" class="loading-state hidden"><span class="spinner" aria-hidden="true"></span> Loading…</div>
 
           <!-- Dashboard -->
@@ -579,6 +583,7 @@ $ docker compose up -d
                   </button>
                 </div>
                 <input id="upload-input" type="file" class="hidden" multiple />
+                <input id="upload-photos-input" type="file" class="hidden" multiple accept="image/*" />
               </div>
               <div class="card">
                 <div class="section-title"><h3>Recent uploads</h3><button class="pill-btn" data-nav="files">See all</button></div>
@@ -632,6 +637,7 @@ $ docker compose up -d
                   <button id="bulk-clear" class="auth-inline-link small" type="button">Clear selection <svg class="icon"><use href="#i-x"/></svg></button>
                 </div>
                 <div id="default-toolbar" class="toolbar-group">
+                  <button id="upload-photos-btn" class="btn mobile-only" type="button"><svg class="icon"><use href="#i-image"/></svg> Upload photos</button>
                   <select id="filter-select" class="input select">
                     <option value="all">All items</option>
                     <option value="file">Files</option>
@@ -846,7 +852,7 @@ $ docker compose up -d
                 <div class="section-title"><h3><svg class="icon"><use href="#i-snowflake"/></svg> About Frostyy Cloud</h3></div>
                 <p class="muted small">Self-hosted cloud storage, running on your own hardware.</p>
                 <div class="row small muted" style="gap:var(--sp-4);">
-                  <span>Version <strong id="about-version">1.2.0</strong></span>
+                  <span>Version <strong id="about-version">1.3.0</strong></span>
                   <span id="about-registration-mode">Registration: open</span>
                 </div>
               </div>
@@ -915,6 +921,32 @@ $ docker compose up -d
                   <thead><tr><th>User</th><th>Role</th><th>Quota</th><th>Files</th><th>Last activity</th><th>Actions</th></tr></thead>
                   <tbody id="admin-users-table"></tbody>
                 </table>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="card">
+                <div class="section-title">
+                  <h3><svg class="icon"><use href="#i-activity"/></svg> Health</h3>
+                  <button id="admin-health-refresh" class="pill-btn" type="button">Refresh</button>
+                </div>
+                <div id="admin-health-summary" class="health-summary muted small">Checking&hellip;</div>
+                <div id="admin-health-checks" class="health-checks"></div>
+                <div id="admin-health-info" class="health-info small muted"></div>
+              </div>
+
+              <div class="card">
+                <div class="section-title">
+                  <h3><svg class="icon"><use href="#i-drive"/></svg> Backups</h3>
+                  <button id="admin-backup-create" class="btn" type="button">Create backup</button>
+                </div>
+                <p class="small muted">Snapshots of <code>data/</code> and <code>uploads/</code>, saved to the server's <code>backups/</code> folder. Download one and keep it somewhere else.</p>
+                <div class="file-table-wrap">
+                  <table class="file-table">
+                    <thead><tr><th>Backup</th><th>Size</th><th>Created</th><th>Actions</th></tr></thead>
+                    <tbody id="admin-backups-table"></tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </section>

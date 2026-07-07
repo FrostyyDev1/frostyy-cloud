@@ -18,9 +18,18 @@ Built as a homelab project and now polished toward private/public beta quality.
 - Settings: display name, email, password, theme (light/dark/system), storage summary, plan info, About/version
 - Admin dashboard with per-user storage/file breakdown, search, per-user quota overrides, promote/demote, and disable/enable (admin-only)
 - Registration switch: open by default, or disable new signups entirely
+- Admin Health page: writability, JSON integrity, orphaned-file, and disk-space checks at a glance
+- One-click backups of `data/` + `uploads/` as downloadable `.tar.gz` archives
 - Concurrency-safe data layer: JSON writes are locked and atomic, so simultaneous requests can't corrupt or clobber each other's data
 - Persistent storage via Docker volumes/bind mounts — uploads and accounts survive container restarts and rebuilds
-- Responsive layout, usable on mobile
+- Responsive layout, usable on mobile — including a dedicated photo-upload flow for phones
+
+### New in v1.3.0
+- **Admin → Health**: green/yellow/red status checks (directories writable, JSON files valid, metadata vs. disk consistency, free disk space) plus an instance info line.
+- **Admin → Backups**: create, download, and delete timestamped `.tar.gz` snapshots of `data/` and `uploads/`. Backups land in `backups/` (gitignored) and include a non-secret `backup-info.json` config summary — never your `.env`.
+- **Phone uploads**: an "Upload photos" button on mobile opens the photo picker directly; files upload one at a time with a floating progress pill, and My Files refreshes immediately.
+- **Mobile polish**: bigger tap targets, no iOS zoom-on-focus, safe-area insets, decrowded top bar, and scrollable admin tables on small screens.
+- Diagnostic scripts are now copied into the Docker image, and `scripts/audit-storage.mjs` gained byte totals and a `--strict` flag.
 
 ## Tech stack
 - **Backend**: Node.js, Express
@@ -184,6 +193,24 @@ ADMIN_USER_QUOTA_MB=102400     # admins: 100 GB
 ADMIN_USER_QUOTA_MB=unlimited  # or: ADMIN_USER_QUOTA_MB=-1
 ```
 Both forms of "no limit" are equivalent; the UI shows "Unlimited" instead of a percentage. This only applies to accounts with the `admin` role — normal users always use `DEFAULT_USER_QUOTA_MB` regardless of this setting.
+
+## Admin health & backups
+**Health** (Admin → Health): status rows for data/uploads directory writability, JSON file integrity, metadata↔disk consistency (missing files, orphaned uploads), and free disk space, with a healthy/warning/critical summary and an instance info line (version, ports, quotas, user counts). If anything shows yellow or red, `scripts/audit-users.mjs` and `scripts/audit-storage.mjs` give the detailed breakdown.
+
+**Backups** (Admin → Backups): "Create backup" produces `backups/frostyy-backup-YYYY-MM-DD-HHMMSS.tar.gz` containing `data/` and `uploads/` plus a non-secret `data/backup-info.json` config summary. Your `.env` (and therefore `SESSION_SECRET`) is never included — keep a copy of it somewhere safe separately. Download backups off the server; a backup sitting next to the data it protects is only half a backup. One backup runs at a time, and filenames are strictly validated so the download/delete endpoints can't touch anything else.
+
+To restore: stop the container, extract the archive over the project directory (`tar -xzf backups/<name>.tar.gz`), and start again.
+
+## Uploading from your phone
+On screens up to 720px wide, My Files shows an **Upload photos** button that opens your phone's photo picker directly (multi-select supported). Files upload one at a time — deliberate, so a batch of 20 photos doesn't overwhelm a Raspberry Pi — with a floating progress pill (`Uploading 3 of 20 — 45%`). Uploads land in whatever folder you have open, quota and size limits apply as usual, and the file list refreshes automatically when the batch finishes. If some files fail (too big, quota exceeded, network drop), you get a count plus the first reason.
+
+## Diagnostic scripts in Docker
+The `scripts/` folder ships inside the image:
+```bash
+docker compose exec cloud-app node scripts/audit-users.mjs
+docker compose exec cloud-app node scripts/audit-storage.mjs          # add --strict for a nonzero exit on issues
+docker compose exec cloud-app node scripts/smoke-auth.mjs http://localhost:3000 you@example.com yourpassword
+```
 
 ## Registration modes
 Signup requires only an email and password. `REGISTRATION_MODE=open` (the default) lets anyone who can reach the server create an account; `REGISTRATION_MODE=disabled` blocks new signups entirely without touching existing accounts. Invite codes were removed — `REGISTRATION_MODE=invite` and `INVITE_CODES` are ignored (with a deprecation warning in the logs), and any old `data/invites.json` content is left alone but unused.

@@ -14,7 +14,8 @@ import {
   loginIdentifierFrom,
   hashResetToken,
   findValidResetRecord,
-  generateTempPassword
+  generateTempPassword,
+  isValidBackupName
 } from '../server.js';
 
 test('server exposes the app', () => {
@@ -200,4 +201,20 @@ test('generateTempPassword: long enough to pass the password policy, and random'
   const b = generateTempPassword();
   assert.ok(a.length >= 8, `expected >= 8 chars, got ${a.length}`);
   assert.notEqual(a, b);
+});
+
+test('isValidBackupName: accepts only timestamped backup archives', () => {
+  assert.equal(isValidBackupName('frostyy-backup-2026-07-07-153000.tar.gz'), true);
+  assert.equal(isValidBackupName('frostyy-backup-2026-1-1-1.tar.gz'), false);
+  assert.equal(isValidBackupName('other-file.tar.gz'), false);
+  assert.equal(isValidBackupName(''), false);
+  assert.equal(isValidBackupName(undefined), false);
+});
+
+test('isValidBackupName: blocks path traversal and lookalike names', () => {
+  assert.equal(isValidBackupName('../frostyy-backup-2026-07-07-153000.tar.gz'), false);
+  assert.equal(isValidBackupName('..\\frostyy-backup-2026-07-07-153000.tar.gz'), false);
+  assert.equal(isValidBackupName('frostyy-backup-2026-07-07-153000.tar.gz/../../.env'), false);
+  assert.equal(isValidBackupName('frostyy-backup-2026-07-07-153000.tar.gz.exe'), false);
+  assert.equal(isValidBackupName('/etc/passwd'), false);
 });

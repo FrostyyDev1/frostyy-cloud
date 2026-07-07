@@ -225,7 +225,12 @@ function bindEvents() {
   document.getElementById('auth-form').addEventListener('submit', handleAuthSubmit);
   document.getElementById('create-folder-btn').addEventListener('click', createFolder);
   document.getElementById('upload-btn').addEventListener('click', () => els.uploadInput.click());
-  els.uploadInput.addEventListener('change', () => uploadFiles(els.uploadInput.files));
+  els.uploadInput.addEventListener('change', () => { uploadFiles(els.uploadInput.files); els.uploadInput.value = ''; });
+  const photosInput = document.getElementById('upload-photos-input');
+  document.getElementById('upload-photos-btn')?.addEventListener('click', () => photosInput?.click());
+  // Clearing .value afterwards lets the same photos be picked again later -
+  // otherwise a repeat selection fires no change event.
+  photosInput?.addEventListener('change', () => { uploadFiles(photosInput.files); photosInput.value = ''; });
   if (els.supportForm) els.supportForm.addEventListener('submit', submitSupport);
   if (els.settingsForm) els.settingsForm.addEventListener('submit', submitSettings);
   if (els.passwordForm) els.passwordForm.addEventListener('submit', submitPassword);
@@ -234,6 +239,8 @@ function bindEvents() {
   const splashRetry = document.getElementById('splash-retry');
   if (splashRetry) splashRetry.addEventListener('click', () => withBusyButton(splashRetry, 'Retrying…', retrySplashLoad));
 
+  document.getElementById('admin-health-refresh')?.addEventListener('click', loadAdminHealth);
+  document.getElementById('admin-backup-create')?.addEventListener('click', createBackup);
   document.getElementById('auth-forgot-link')?.addEventListener('click', showForgotPassword);
   document.getElementById('forgot-back-link')?.addEventListener('click', () => showAuth('login'));
   document.getElementById('reset-back-link')?.addEventListener('click', () => showAuth('login'));
@@ -599,7 +606,7 @@ function switchView(view) {
     if (view === 'favorites') loadFavorites();
     if (view === 'trash') loadTrash();
     if (view === 'activity') loadActivity();
-    if (view === 'admin') { loadAdminSummary(); loadAdminUsers(); }
+    if (view === 'admin') { loadAdminSummary(); loadAdminUsers(); loadAdminHealth(); loadAdminBackups(); }
     if (view === 'settings') { populateSettingsForm(); loadSettingsPage(); }
     if (view === 'storage') loadStoragePage();
   } else {
@@ -1097,6 +1104,139 @@ function bindAdminUserRowActions(row, user) {
   });
 }
 
+async function loadAdminHealth() {
+  if (!state.user) return;
+  const summaryEl = document.getElementById('admin-health-summary');
+  const checksEl = document.getElementById('admin-health-checks');
+  const infoEl = document.getElementById('admin-health-info');
+  if (!summaryEl || !checksEl || !infoEl) return;
+  summaryEl.innerHTML = 'Checking…';
+  summaryEl.className = 'health-summary muted small';
+  try {
+    const res = await fetch('/api/admin/health');
+    const data = await res.json();
+    if (handleAuthLoss(res)) return;
+    if (!res.ok) {
+      summaryEl.innerHTML = `Could not load health report (HTTP ${res.status}${data.error ? ` — ${escapeHtml(data.error)}` : ''}).`;
+      summaryEl.className = 'health-summary small health-critical';
+      checksEl.innerHTML = '';
+      infoEl.innerHTML = '';
+      return;
+    }
+    renderAdminHealth(data);
+  } catch {
+    summaryEl.innerHTML = 'Could not load health report — the server did not respond.';
+    summaryEl.className = 'health-summary small health-critical';
+    checksEl.innerHTML = '';
+    infoEl.innerHTML = '';
+  }
+}
+
+function renderAdminHealth(data) {
+  const summaryEl = document.getElementById('admin-health-summary');
+  const checksEl = document.getElementById('admin-health-checks');
+  const infoEl = document.getElementById('admin-health-info');
+  const { summary, checks, info } = data;
+
+  const summaryText = summary.status === 'healthy'
+    ? 'Healthy — all checks passed'
+    : summary.status === 'warning'
+      ? `${summary.warnings} warning${summary.warnings === 1 ? '' : 's'}`
+      : `${summary.critical} critical issue${summary.critical === 1 ? '' : 's'}${summary.warnings ? `, ${summary.warnings} warning${summary.warnings === 1 ? '' : 's'}` : ''}`;
+  summaryEl.innerHTML = `<span class="health-dot ${summary.status === 'healthy' ? 'ok' : summary.status === 'warning' ? 'warn' : 'critical'}"></span> ${escapeHtml(summaryText)}`;
+  summaryEl.className = `health-summary small health-${summary.status}`;
+
+  checksEl.innerHTML = checks.map((c) => `
+    <div class="health-row">
+      <span class="health-dot ${c.status}"></span>
+      <span class="health-label">${escapeHtml(c.label)}</span>
+      <span class="health-detail muted">${escapeHtml(c.detail || '')}</span>
+    </div>
+  `).join('');
+
+  const quotaLabelText = (mb) => (mb === -1 ? 'Unlimited' : formatGb(mb * 1024 * 1024));
+  infoEl.innerHTML = [
+    `v${escapeHtml(String(info.version))}`,
+    escapeHtml(info.nodeEnv),
+    `registration: ${escapeHtml(info.registrationMode)}`,
+    `secure cookies: ${info.secureCookies ? 'on' : 'off'}`,
+    `port ${escapeHtml(String(info.port))}${info.hostPort ? ` (host ${escapeHtml(String(info.hostPort))})` : ''}`,
+    `max upload ${escapeHtml(String(info.maxUploadMb))} MB`,
+    `quotas ${quotaLabelText(info.defaultQuotaMb)} / ${quotaLabelText(info.adminQuotaMb)}`,
+    `${info.users.total} user${info.users.total === 1 ? '' : 's'} (${info.users.admins} admin, ${info.users.disabled} disabled)`,
+    `${info.storage.files} file${info.storage.files === 1 ? '' : 's'}, ${info.storage.trash} in trash`
+  ].join(' · ');
+}
+
+async function loadAdminBackups() {
+  if (!state.user) return;
+  const tbody = document.getElementById('admin-backups-table');
+  if (!tbody) return;
+  try {
+    const res = await fetch('/api/admin/backups');
+    const data = await res.json();
+    if (handleAuthLoss(res)) return;
+    if (!res.ok) {
+      tbody.innerHTML = `<tr><td colspan="4" class="muted-cell">Could not load backups (HTTP ${res.status}${data.error ? ` — ${escapeHtml(data.error)}` : ''}).</td></tr>`;
+      return;
+    }
+    renderAdminBackups(data.backups || []);
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="4" class="muted-cell">Could not load backups — the server did not respond.</td></tr>';
+  }
+}
+
+function renderAdminBackups(backups) {
+  const tbody = document.getElementById('admin-backups-table');
+  if (!tbody) return;
+  if (!backups.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="muted-cell">No backups yet. Create one, then download it somewhere safe.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = backups.map((b) => `
+    <tr data-backup="${escapeHtml(b.name)}">
+      <td class="backup-name">${escapeHtml(b.name)}</td>
+      <td class="muted-cell">${formatBytes(b.size)}</td>
+      <td class="muted-cell">${new Date(b.createdAt).toLocaleString()}</td>
+      <td class="col-actions">
+        <div class="admin-row-actions">
+          <a class="ghost-btn" href="/api/admin/backups/${encodeURIComponent(b.name)}" download>Download</a>
+          <button class="ghost-btn danger backup-delete-btn" type="button">Delete</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  tbody.querySelectorAll('.backup-delete-btn').forEach((btn) => {
+    const name = btn.closest('tr')?.dataset.backup;
+    btn.addEventListener('click', () => {
+      openModal('Delete backup', `Delete "${name}"? This cannot be undone.`, async () => {
+        const res = await fetch(`/api/admin/backups/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) return showError(data.error || 'Could not delete backup');
+        showMessage('Backup deleted');
+        loadAdminBackups();
+      }, 'Deleting…');
+    });
+  });
+}
+
+async function createBackup() {
+  const button = document.getElementById('admin-backup-create');
+  await withBusyButton(button, 'Creating…', async () => {
+    try {
+      const res = await fetch('/api/admin/backups', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) return showError(data.error || 'Backup failed');
+      showMessage(`Backup created (${formatBytes(data.size)})`);
+      loadAdminBackups();
+      loadAdminHealth();
+    } catch {
+      showError('Backup failed — the server did not respond.');
+    }
+  });
+}
+
 function populateSettingsForm() {
   if (!state.user) return;
   const displayNameInput = document.getElementById('display-name');
@@ -1151,6 +1291,7 @@ async function loadFilesStatsRow() {
     document.getElementById('files-stat-storage').innerText = formatBytes(data.summary?.totalSize || 0);
     document.getElementById('files-stat-trash').innerText = data.summary?.trashedCount || 0;
     document.getElementById('files-stat-shared').innerText = (state.shared || []).length;
+    updateSidebarStorage(data.summary?.totalSize || 0, data.storageQuotaMb ?? state.storageQuotaMb);
   } catch {
     // ignore - the file grid below still works without the stats row
   }
@@ -1625,30 +1766,58 @@ async function createFolder() {
   }
 }
 
+/** Floating pill so upload progress is visible from any page - the inline
+ * progress bar lives on the Uploads page, which a phone user never sees. */
+function setUploadPill(text) {
+  const pill = document.getElementById('upload-status-pill');
+  const pillText = document.getElementById('upload-pill-text');
+  if (!pill || !pillText) return;
+  if (text) {
+    pillText.innerText = text;
+    pill.classList.remove('hidden');
+  } else {
+    pill.classList.add('hidden');
+  }
+}
+
+// Files are uploaded one at a time (a phone picking 20 photos should not
+// fire 20 simultaneous requests at a Raspberry Pi).
 async function uploadFiles(files) {
   if (!files?.length) return;
   const queue = Array.from(files);
   let uploaded = 0;
+  const failures = [];
   const progressWrap = document.getElementById('upload-progress-wrap');
   if (progressWrap) progressWrap.classList.remove('hidden');
-  for (const file of queue) {
+  setUploadPill(`Uploading 1 of ${queue.length}…`);
+  for (let i = 0; i < queue.length; i += 1) {
+    const file = queue[i];
     try {
-      await uploadSingleFile(file, queue.length);
+      await uploadSingleFile(file, queue.length, i + 1);
       uploaded += 1;
     } catch (err) {
-      showError(err.message || `Failed to upload ${file.name}`);
+      failures.push({ name: file.name, reason: err.message || 'Upload failed' });
     }
   }
   state.uploadProgress = 0;
   els.progressBar.style.width = '0%';
   els.progressText.innerText = 'Ready';
   if (progressWrap) progressWrap.classList.add('hidden');
-  if (uploaded) showMessage(`${uploaded} file${uploaded === 1 ? '' : 's'} uploaded successfully`);
+  setUploadPill('');
+  if (failures.length && uploaded) {
+    showError(`${uploaded} uploaded, ${failures.length} failed — ${failures[0].name}: ${failures[0].reason}`);
+  } else if (failures.length) {
+    showError(failures.length === 1
+      ? `${failures[0].name}: ${failures[0].reason}`
+      : `All ${failures.length} uploads failed — ${failures[0].reason}`);
+  } else {
+    showMessage(`${uploaded} file${uploaded === 1 ? '' : 's'} uploaded successfully`);
+  }
   loadFiles();
   loadFilesStatsRow();
 }
 
-function uploadSingleFile(file, total) {
+function uploadSingleFile(file, total, position = 1) {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -1662,6 +1831,9 @@ function uploadSingleFile(file, total) {
         state.uploadProgress = Math.round((event.loaded / event.total) * 100);
         els.progressBar.style.width = `${state.uploadProgress}%`;
         els.progressText.innerText = total > 1 ? `Uploading ${file.name} (${state.uploadProgress}%)` : `${state.uploadProgress}% uploaded`;
+        setUploadPill(total > 1
+          ? `Uploading ${position} of ${total} — ${state.uploadProgress}%`
+          : `Uploading ${file.name} — ${state.uploadProgress}%`);
         render();
       }
     };
