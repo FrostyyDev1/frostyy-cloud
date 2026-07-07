@@ -6,7 +6,7 @@ Built as a homelab project and now polished toward private/public beta quality.
 
 ## Screenshots
 
-*(add screenshots here before publishing — dashboard, file manager grid/list view, and the mobile layout are good candidates)*
+*ComingSoon*
 
 ## Features
 - Simple email + password signup and login (bcrypt-hashed passwords, first registered account becomes admin)
