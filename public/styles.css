@@ -1072,6 +1072,8 @@ select.input, .select {
 .auth-card .input-icon-wrap .input-icon { left: 14px; }
 .auth-card .btn-block { padding: 13px 16px; font-size: var(--fs-base); }
 .auth-card .form-grid { gap: var(--sp-5); }
+.auth-forgot-row { display: flex; justify-content: flex-end; margin-top: calc(-1 * var(--sp-3)); }
+.auth-panel-note { margin: var(--sp-4) 0 0; text-align: center; line-height: 1.5; }
 .auth-toggle {
   display: flex;
   background: var(--surface-2);

@@ -22,7 +22,8 @@ const state = {
   themePreference: 'dark',
   adminUsersRaw: [],
   adminUsersSearch: '',
-  dashboardLoaded: false
+  dashboardLoaded: false,
+  resetToken: ''
 };
 
 const els = {};
@@ -32,6 +33,16 @@ function init() {
   bindEvents();
   bindGlobalSearch();
   applyTheme();
+  // A ?resetToken=... link (from the server log) opens the reset-password
+  // panel once the session check settles. Strip it from the URL so a refresh
+  // doesn't re-trigger the panel or leave the token in browser history.
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('resetToken')) {
+    state.resetToken = urlParams.get('resetToken');
+    urlParams.delete('resetToken');
+    const query = urlParams.toString();
+    window.history.replaceState(null, '', window.location.pathname + (query ? `?${query}` : ''));
+  }
   startSplashTimeout();
   loadAppConfig();
   loadUser();
@@ -222,6 +233,12 @@ function bindEvents() {
   if (els.modalConfirm) els.modalConfirm.addEventListener('click', handleModalConfirm);
   const splashRetry = document.getElementById('splash-retry');
   if (splashRetry) splashRetry.addEventListener('click', () => withBusyButton(splashRetry, 'Retrying…', retrySplashLoad));
+
+  document.getElementById('auth-forgot-link')?.addEventListener('click', showForgotPassword);
+  document.getElementById('forgot-back-link')?.addEventListener('click', () => showAuth('login'));
+  document.getElementById('reset-back-link')?.addEventListener('click', () => showAuth('login'));
+  document.getElementById('forgot-form')?.addEventListener('submit', handleForgotSubmit);
+  document.getElementById('reset-form')?.addEventListener('submit', handleResetSubmit);
   const modalClose = document.getElementById('modal-close');
   if (modalClose) modalClose.addEventListener('click', closeModal);
 
@@ -499,12 +516,36 @@ async function sendJson(url, body, method = 'POST') {
   return { res, data };
 }
 
+/** Handles a 401 from a background loader without a scary red toast.
+ * Returns true when the response was an auth failure (already handled):
+ * a signed-in user is calmly sent to the login card with a session-expired
+ * note; parallel loaders hitting the same 401 become no-ops. */
+function handleAuthLoss(res) {
+  if (res.status !== 401) return false;
+  if (!state.user) return true;
+  state.user = null;
+  state.files = [];
+  state.shared = [];
+  state.adminUsersRaw = [];
+  state.dashboardLoaded = false;
+  showAuth('login');
+  els.authMessage.innerText = 'Your session expired. Please sign in again.';
+  render();
+  return true;
+}
+
 async function loadUser() {
   try {
     const res = await fetch('/api/auth/me');
     if (!res.ok) {
+      // No session is a normal state on first visit - show the landing page
+      // (or the reset panel if the user arrived via a reset link), silently.
       state.user = null;
-      switchView('landing');
+      if (state.resetToken) {
+        showResetPanel();
+      } else {
+        switchView('landing');
+      }
       hideSplash();
       return;
     }
@@ -571,6 +612,8 @@ function switchView(view) {
 
 function resetAuthForm() {
   els.authForm.reset();
+  document.getElementById('forgot-form')?.reset();
+  document.getElementById('reset-form')?.reset();
   els.authError.innerText = '';
   els.authMessage.innerText = '';
   const confirmHint = document.getElementById('auth-confirm-hint');
@@ -578,10 +621,15 @@ function resetAuthForm() {
 }
 
 function showAuth(mode) {
-  state.view = mode;
+  // The view must be 'auth' (not the mode name): render() only keeps the
+  // landing screen hidden when state.view === 'auth'. Setting it to
+  // 'login'/'signup' made every render() reveal the landing page above the
+  // auth card, so a failed login appeared to jump back to the hero.
+  state.view = 'auth';
   els.landingScreen.classList.add('hidden');
   els.dashboardShell.classList.add('hidden');
   els.authScreen.classList.remove('hidden');
+  showAuthPanel('auth-form');
   resetAuthForm();
 
   document.querySelectorAll('.auth-toggle-btn').forEach((btn) => btn.classList.toggle('active', btn.dataset.authMode === mode));
@@ -609,6 +657,87 @@ function showAuth(mode) {
   if (inviteField) inviteField.classList.toggle('hidden', !(mode === 'signup' && registrationMode === 'invite'));
   if (disabledNote) disabledNote.classList.toggle('hidden', !isSignupDisabled);
   els.authForm.classList.toggle('hidden', isSignupDisabled);
+  document.getElementById('auth-forgot-row')?.classList.toggle('hidden', mode !== 'login');
+}
+
+/** Shows exactly one of the three auth-card panels (login/signup form,
+ * forgot-password form, reset form) and hides the tabs for the latter two. */
+function showAuthPanel(panelId) {
+  ['auth-form', 'forgot-form', 'reset-form'].forEach((id) => {
+    document.getElementById(id)?.classList.toggle('hidden', id !== panelId);
+  });
+  const inAuthForm = panelId === 'auth-form';
+  document.querySelector('.auth-toggle')?.classList.toggle('hidden', !inAuthForm);
+  if (els.authSwitch) els.authSwitch.classList.toggle('hidden', !inAuthForm);
+}
+
+function openAuthScreen() {
+  state.view = 'auth';
+  els.landingScreen.classList.add('hidden');
+  els.dashboardShell.classList.add('hidden');
+  els.authScreen.classList.remove('hidden');
+  els.authError.innerText = '';
+  els.authMessage.innerText = '';
+}
+
+function showForgotPassword() {
+  openAuthScreen();
+  showAuthPanel('forgot-form');
+  els.authTitle.innerText = 'Reset your password';
+  document.getElementById('auth-subtitle').innerText = 'Enter your email address to create a reset request.';
+  const forgotEmail = document.getElementById('forgot-email');
+  if (forgotEmail && !forgotEmail.value) forgotEmail.value = els.authEmail.value.trim();
+  forgotEmail?.focus();
+  render();
+}
+
+function showResetPanel() {
+  openAuthScreen();
+  showAuthPanel('reset-form');
+  els.authTitle.innerText = 'Choose a new password';
+  document.getElementById('auth-subtitle').innerText = 'Set a new password for your account.';
+  render();
+}
+
+async function handleForgotSubmit(event) {
+  event.preventDefault();
+  const email = document.getElementById('forgot-email').value.trim();
+  if (!email) {
+    els.authError.innerText = 'Enter your email address';
+    return;
+  }
+  els.authError.innerText = '';
+  const button = event.target.querySelector('button[type="submit"]');
+  await withBusyButton(button, 'Sending…', async () => {
+    const { data } = await sendJson('/api/auth/forgot', { email });
+    els.authMessage.innerText = data.message || 'If that account exists, a reset request was created.';
+  });
+}
+
+async function handleResetSubmit(event) {
+  event.preventDefault();
+  const password = document.getElementById('reset-password').value;
+  const confirm = document.getElementById('reset-confirm-password').value;
+  if (password.length < 8) {
+    els.authError.innerText = 'Password must be at least 8 characters';
+    return;
+  }
+  if (password !== confirm) {
+    els.authError.innerText = 'Passwords do not match';
+    return;
+  }
+  els.authError.innerText = '';
+  const button = event.target.querySelector('button[type="submit"]');
+  await withBusyButton(button, 'Saving…', async () => {
+    const { res, data } = await sendJson('/api/auth/reset', { token: state.resetToken, password });
+    if (!res.ok) {
+      els.authError.innerText = data.error || 'Password reset failed';
+      return;
+    }
+    state.resetToken = '';
+    showAuth('login');
+    els.authMessage.innerText = 'Password updated. Sign in with your new password.';
+  });
 }
 
 async function handleAuthSubmit(event) {
@@ -691,6 +820,7 @@ async function loadFiles() {
     const params = state.currentFolder ? `?parentId=${encodeURIComponent(state.currentFolder)}` : '';
     const res = await fetch(`/api/files${params}`);
     const data = await res.json();
+    if (handleAuthLoss(res)) return;
     if (!res.ok) throw new Error(data.error || 'Could not load files');
     state.files = data.items || [];
     state.breadcrumb = data.breadcrumb || [];
@@ -730,6 +860,7 @@ async function loadShared() {
   try {
     const res = await fetch('/api/shared');
     const data = await res.json();
+    if (handleAuthLoss(res)) return;
     if (!res.ok) throw new Error(data.error || 'Could not load shared files');
     state.shared = data.items || [];
     renderShared();
@@ -747,6 +878,7 @@ async function loadRecent() {
   try {
     const res = await fetch('/api/files/recent');
     const data = await res.json();
+    if (handleAuthLoss(res)) return;
     if (!res.ok) throw new Error(data.error || 'Could not load recent files');
     renderSimpleGrid(els.recentFileList, data.items || [], { emptyText: 'No recent uploads yet.' });
   } catch (err) {
@@ -759,6 +891,7 @@ async function loadFavorites() {
   try {
     const res = await fetch('/api/favorites');
     const data = await res.json();
+    if (handleAuthLoss(res)) return;
     if (!res.ok) throw new Error(data.error || 'Could not load favorites');
     renderSimpleGrid(els.favoritesFileList, data.items || [], { emptyText: "You haven't starred anything yet." });
   } catch (err) {
@@ -771,6 +904,7 @@ async function loadTrash() {
   try {
     const res = await fetch('/api/trash');
     const data = await res.json();
+    if (handleAuthLoss(res)) return;
     if (!res.ok) throw new Error(data.error || 'Could not load trash');
     renderTrashGrid(els.trashFileList, data.items || []);
   } catch (err) {
@@ -783,6 +917,7 @@ async function loadActivity() {
   try {
     const res = await fetch('/api/activity');
     const data = await res.json();
+    if (handleAuthLoss(res)) return;
     if (!res.ok) throw new Error(data.error || 'Could not load activity');
     state.activity = data.activities || [];
     renderActivity();
@@ -812,14 +947,16 @@ async function loadAdminUsers() {
   try {
     const res = await fetch('/api/admin/users');
     const data = await res.json();
+    if (handleAuthLoss(res)) return;
     if (!res.ok) {
-      if (tbody && !state.adminUsersRaw.length) tbody.innerHTML = '<tr><td colspan="6" class="muted-cell">Could not load users.</td></tr>';
+      // Never leave a silently empty table: say exactly what failed.
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="muted-cell">Could not load users (HTTP ${res.status}${data.error ? ` — ${escapeHtml(data.error)}` : ''}).</td></tr>`;
       return;
     }
     state.adminUsersRaw = data.users || [];
     renderAdminUsersFiltered();
   } catch {
-    if (tbody && !state.adminUsersRaw.length) tbody.innerHTML = '<tr><td colspan="6" class="muted-cell">Could not load users. Check your connection and try again.</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="muted-cell">Could not load users — the server did not respond. Check your connection and try again.</td></tr>';
   }
 }
 
@@ -887,6 +1024,7 @@ function renderAdminUsers(users) {
           </select>
           <button class="ghost-btn admin-quota-apply" type="button" ${isSelf(u) ? 'disabled' : ''}>Set</button>
           <button class="ghost-btn admin-role-btn" type="button" ${isSelf(u) ? 'disabled title="You cannot change your own role"' : ''}>${u.isAdmin ? 'Demote' : 'Promote'}</button>
+          <button class="ghost-btn admin-resetpw-btn" type="button" ${isSelf(u) ? 'disabled title="Use Settings to change your own password"' : ''}>Reset password</button>
           <button class="ghost-btn danger admin-disable-btn" type="button" ${isSelf(u) ? 'disabled title="You cannot disable your own account"' : ''}>${u.disabled ? 'Enable' : 'Disable'}</button>
         </div>
       </td>
@@ -908,6 +1046,22 @@ function bindAdminUserRowActions(row, user) {
   const quotaBtn = row.querySelector('.admin-quota-apply');
   const roleBtn = row.querySelector('.admin-role-btn');
   const disableBtn = row.querySelector('.admin-disable-btn');
+  const resetPwBtn = row.querySelector('.admin-resetpw-btn');
+
+  resetPwBtn?.addEventListener('click', () => {
+    const name = user.displayName || user.username;
+    openModal('Reset password', `Reset the password for "${name}"? They will be signed out immediately and need the new temporary password to log back in.`, async () => {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(user.username)}/reset-password`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) return showError(data.error || 'Could not reset password');
+      loadAdminUsers();
+      // Reopen the modal on the next tick (the confirm flow closes it first)
+      // to show the temporary password once - it is not stored or logged.
+      setTimeout(() => {
+        openModal('Temporary password', `Temporary password for ${name}:\n\n${data.tempPassword}\n\nCopy it now — it won't be shown again. Ask them to change it in Settings after logging in.`, () => {});
+      }, 0);
+    }, 'Resetting…');
+  });
 
   quotaBtn?.addEventListener('click', () => withBusyButton(quotaBtn, 'Saving…', async () => {
     const value = quotaSelect.value;

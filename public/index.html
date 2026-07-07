@@ -314,6 +314,9 @@
                     </div>
                     <span class="field-hint" id="auth-password-hint">At least 8 characters</span>
                   </div>
+                  <div id="auth-forgot-row" class="auth-forgot-row">
+                    <button type="button" id="auth-forgot-link" class="auth-inline-link small">Forgot password?</button>
+                  </div>
                   <div class="field hidden" id="auth-confirm-field">
                     <label class="field-label" for="auth-confirm-password">Confirm password</label>
                     <div class="input-icon-wrap">
@@ -327,6 +330,43 @@
                     <input id="auth-invite-code" name="frostyy_invite_code" class="input" placeholder="Enter your invite code" autocomplete="off" />
                   </div>
                   <button id="auth-submit" class="btn btn-block" type="submit">Continue <svg class="icon"><use href="#i-arrow-right"/></svg></button>
+                </div>
+              </form>
+
+              <form id="forgot-form" class="hidden" autocomplete="off">
+                <div class="form-grid">
+                  <div class="field">
+                    <label class="field-label" for="forgot-email">Email address</label>
+                    <div class="input-icon-wrap">
+                      <svg class="icon input-icon" aria-hidden="true"><use href="#i-mail"/></svg>
+                      <input id="forgot-email" name="frostyy_forgot_email" class="input has-icon" type="email" placeholder="Enter your email address" required autocomplete="email" />
+                    </div>
+                  </div>
+                  <button class="btn btn-block" type="submit">Create reset request</button>
+                  <button type="button" id="forgot-back-link" class="auth-inline-link small">Back to log in</button>
+                </div>
+                <p class="small muted auth-panel-note">This server doesn't send email. The reset link appears in the server logs, where the administrator can pass it to you.</p>
+              </form>
+
+              <form id="reset-form" class="hidden" autocomplete="off">
+                <div class="form-grid">
+                  <div class="field">
+                    <label class="field-label" for="reset-password">New password</label>
+                    <div class="input-icon-wrap">
+                      <svg class="icon input-icon" aria-hidden="true"><use href="#i-lock"/></svg>
+                      <input id="reset-password" name="frostyy_reset_password" type="password" class="input has-icon" placeholder="Enter a new password" required autocomplete="new-password" />
+                    </div>
+                    <span class="field-hint">At least 8 characters</span>
+                  </div>
+                  <div class="field">
+                    <label class="field-label" for="reset-confirm-password">Confirm new password</label>
+                    <div class="input-icon-wrap">
+                      <svg class="icon input-icon" aria-hidden="true"><use href="#i-lock"/></svg>
+                      <input id="reset-confirm-password" name="frostyy_reset_confirm" type="password" class="input has-icon" placeholder="Re-enter the new password" required autocomplete="new-password" />
+                    </div>
+                  </div>
+                  <button class="btn btn-block" type="submit">Set new password</button>
+                  <button type="button" id="reset-back-link" class="auth-inline-link small">Back to log in</button>
                 </div>
               </form>
                 <p id="auth-switch" class="small muted auth-switch-row"></p>

@@ -10,7 +10,10 @@ import {
   normalizeEmail,
   getPasswordHash,
   findAccountCandidates,
-  pickLoginRecord
+  pickLoginRecord,
+  hashResetToken,
+  findValidResetRecord,
+  generateTempPassword
 } from '../server.js';
 
 test('server exposes the app', () => {
@@ -149,4 +152,34 @@ test('pickLoginRecord: returns null when no candidate has a usable hash', () => 
 test('pickLoginRecord: finds accounts via the email field when username is swapped', () => {
   const swapped = { username: 'Jacob Wiseman', email: 'jacob@example.com', password: FAKE_HASH };
   assert.equal(pickLoginRecord([swapped], 'jacob@example.com'), swapped);
+});
+
+test('hashResetToken: deterministic sha256, never the raw token', () => {
+  const token = 'abc123-example-token';
+  const hash = hashResetToken(token);
+  assert.equal(hash, hashResetToken(token));
+  assert.equal(hash.length, 64);
+  assert.notEqual(hash, token);
+  assert.ok(!hash.includes(token));
+});
+
+test('findValidResetRecord: matches only unused, unexpired records with the right hash', () => {
+  const now = Date.now();
+  const future = new Date(now + 60000).toISOString();
+  const past = new Date(now - 60000).toISOString();
+  const hash = hashResetToken('good-token');
+  const valid = { username: 'a@example.com', tokenHash: hash, used: false, expiresAt: future };
+
+  assert.equal(findValidResetRecord([valid], hash, now), valid);
+  assert.equal(findValidResetRecord([{ ...valid, used: true }], hash, now), null);
+  assert.equal(findValidResetRecord([{ ...valid, expiresAt: past }], hash, now), null);
+  assert.equal(findValidResetRecord([valid], hashResetToken('wrong-token'), now), null);
+  assert.equal(findValidResetRecord([], hash, now), null);
+});
+
+test('generateTempPassword: long enough to pass the password policy, and random', () => {
+  const a = generateTempPassword();
+  const b = generateTempPassword();
+  assert.ok(a.length >= 8, `expected >= 8 chars, got ${a.length}`);
+  assert.notEqual(a, b);
 });

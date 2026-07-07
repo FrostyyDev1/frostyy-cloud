@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 import multer from 'multer';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -90,6 +91,7 @@ const storageFile = path.join(dataDir, 'storage.json');
 const activityFile = path.join(dataDir, 'activity.json');
 const ticketsFile = path.join(dataDir, 'tickets.json');
 const invitesFile = path.join(dataDir, 'invites.json');
+const passwordResetsFile = path.join(dataDir, 'password-resets.json');
 
 for (const dir of [dataDir, uploadsRoot, publicDir, path.join(uploadsRoot, '_tmp')]) {
   if (!fs.existsSync(dir)) {
@@ -111,6 +113,9 @@ if (!fs.existsSync(ticketsFile)) {
 }
 if (!fs.existsSync(invitesFile)) {
   fs.writeFileSync(invitesFile, JSON.stringify([], null, 2));
+}
+if (!fs.existsSync(passwordResetsFile)) {
+  fs.writeFileSync(passwordResetsFile, JSON.stringify([], null, 2));
 }
 
 // Seed any codes listed in INVITE_CODES (comma-separated) into invites.json on
@@ -315,6 +320,17 @@ async function withInvitesLock(updater) {
     const outcome = await updater(invites);
     const nextInvites = outcome && outcome.invites ? outcome.invites : invites;
     writeJsonAtomic(invitesFile, nextInvites);
+    return outcome && Object.prototype.hasOwnProperty.call(outcome, 'result') ? outcome.result : outcome;
+  });
+}
+
+/** Same locking pattern, for password-resets.json. */
+async function withResetsLock(updater) {
+  return fileMutex.run('password-resets', async () => {
+    const resets = readJsonSafe(passwordResetsFile, []);
+    const outcome = await updater(resets);
+    const nextResets = outcome && outcome.resets ? outcome.resets : resets;
+    writeJsonAtomic(passwordResetsFile, nextResets);
     return outcome && Object.prototype.hasOwnProperty.call(outcome, 'result') ? outcome.result : outcome;
   });
 }
@@ -766,6 +782,101 @@ app.post('/api/auth/password', async (req, res) => {
   }
 });
 
+// ---- Password reset (self-hosted: no email sending) -----------------------
+// Reset links are printed to the server log only. Tokens are stored hashed,
+// single-use, and short-lived.
+
+const RESET_TOKEN_TTL_MS = 20 * 60 * 1000;
+
+/** SHA-256 of a reset token - only this hash is ever written to disk. */
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex');
+}
+
+/** The matching, unused, unexpired reset record for a token hash, or null. */
+function findValidResetRecord(records, tokenHash, now = Date.now()) {
+  return records.find((r) =>
+    r.tokenHash === tokenHash && !r.used && Date.parse(r.expiresAt) > now
+  ) || null;
+}
+
+/** Random temporary password for admin resets: URL-safe, 12+ chars. */
+function generateTempPassword() {
+  return crypto.randomBytes(9).toString('base64url');
+}
+
+app.post('/api/auth/forgot', authRateLimit, async (req, res) => {
+  const genericReply = { ok: true, message: 'If that account exists, a reset request was created.' };
+  try {
+    const identifier = normalizeEmail(req.body?.email || req.body?.username);
+    if (!identifier) return res.json(genericReply);
+
+    const account = pickLoginRecord(readUsers(), identifier);
+    // Disabled accounts can't log in, so they can't reset either.
+    if (!account || account.disabled) return res.json(genericReply);
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const now = Date.now();
+    await withResetsLock((resets) => {
+      // Prune dead records while we're here so the file can't grow forever.
+      const alive = resets.filter((r) => !r.used && Date.parse(r.expiresAt) > now);
+      alive.push({
+        username: account.username,
+        tokenHash: hashResetToken(token),
+        createdAt: new Date(now).toISOString(),
+        expiresAt: new Date(now + RESET_TOKEN_TTL_MS).toISOString(),
+        used: false
+      });
+      return { resets: alive, result: { ok: true } };
+    });
+
+    // No SMTP on a homelab box: surface the link where only the operator can
+    // see it. The plaintext token exists nowhere else.
+    const base = APP_URL || `http://localhost:${PORT}`;
+    console.log(`[password-reset] Reset link for ${account.username} (valid 20 min): ${base}/?resetToken=${token}`);
+    res.json(genericReply);
+  } catch (err) {
+    console.error('Forgot-password failed:', err.message);
+    // Still generic - never leak whether the account exists.
+    res.json(genericReply);
+  }
+});
+
+app.post('/api/auth/reset', authRateLimit, async (req, res) => {
+  const { token, password } = req.body || {};
+  if (!token || !password) return res.status(400).json({ error: 'Reset token and new password are required' });
+  if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+  try {
+    const tokenHash = hashResetToken(token);
+    const claimed = await withResetsLock((resets) => {
+      const record = findValidResetRecord(resets, tokenHash);
+      if (!record) return { result: null };
+      record.used = true;
+      record.usedAt = new Date().toISOString();
+      return { result: { username: record.username } };
+    });
+    if (!claimed) return res.status(400).json({ error: 'This reset link is invalid or has expired.' });
+
+    const outcome = await withUsersLock(async (users) => {
+      const user = findUserByUsername(users, claimed.username);
+      if (!user) return { result: { error: 'This reset link is invalid or has expired.' } };
+      user.password = await bcrypt.hash(String(password), 10);
+      delete user.passwordHash;
+      user.token = null; // any existing sessions are signed out
+      return { result: { user } };
+    });
+    if (outcome.error) return res.status(400).json({ error: outcome.error });
+
+    addActivity(outcome.user, 'reset password via reset link', {});
+    console.log(`[password-reset] Password reset completed for ${outcome.user.username}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Password reset failed:', err.message);
+    res.status(500).json({ error: 'Password reset failed. Please try again.' });
+  }
+});
+
 app.post('/api/auth/request-delete', (req, res) => {
   const user = getUserFromCookie(req);
   if (!user) return res.status(401).json({ error: 'Not authenticated' });
@@ -1095,7 +1206,10 @@ function requireAdmin(req, res) {
     res.status(401).json({ error: 'Not authenticated' });
     return null;
   }
-  if ((user.role || 'user') !== 'admin') {
+  // Honor ADMIN_EMAILS directly: /api/auth/me promotes env admins in memory
+  // only, so the stored role can lag until their next login. Without this
+  // check an env admin sees the Admin nav but every admin API returns 403.
+  if ((user.role || 'user') !== 'admin' && !isAdminByEnv(user)) {
     res.status(403).json({ error: 'Admin access required' });
     return null;
   }
@@ -1268,6 +1382,31 @@ app.post('/api/admin/users/:username/enable', async (req, res) => {
   addActivity(admin, 'enabled user', { targetUser: outcome.user.username });
   console.log(`[admin] ${admin.username} enabled ${outcome.user.username}`);
   res.json({ ok: true, disabled: false });
+});
+
+app.post('/api/admin/users/:username/reset-password', async (req, res) => {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+
+  const tempPassword = generateTempPassword();
+  const outcome = await withUsersLock(async (users) => {
+    const target = findUserByUsername(users, req.params.username);
+    if (!target) return { result: { error: 'User not found', status: 404 } };
+    if (target.username === admin.username) {
+      return { result: { error: 'Use Settings to change your own password.', status: 400 } };
+    }
+    target.password = await bcrypt.hash(tempPassword, 10);
+    delete target.passwordHash;
+    target.token = null; // sign out their existing sessions
+    return { result: { user: target } };
+  });
+
+  if (outcome.error) return res.status(outcome.status || 400).json({ error: outcome.error });
+  addActivity(admin, 'reset user password', { targetUser: outcome.user.username });
+  // Deliberately NOT logged: the temp password is returned once in this
+  // response and exists nowhere else in plaintext.
+  console.log(`[admin] ${admin.username} reset password for ${outcome.user.username}`);
+  res.json({ ok: true, tempPassword });
 });
 
 app.get('/api/files/:id/preview', (req, res) => {
@@ -1456,5 +1595,8 @@ export {
   normalizeEmail,
   getPasswordHash,
   findAccountCandidates,
-  pickLoginRecord
+  pickLoginRecord,
+  hashResetToken,
+  findValidResetRecord,
+  generateTempPassword
 };
