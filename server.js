@@ -593,6 +593,13 @@ function findAccountCandidates(users, identifier) {
   return users.filter((u) => normalizeEmail(u.username) === target || normalizeEmail(u.email) === target);
 }
 
+/** The account identifier from an auth request body. The UI sends `email`;
+ * `username` is accepted as a backwards-compatible fallback for older
+ * clients and scripts. Normalized (trim + lowercase), '' when absent. */
+function loginIdentifierFrom(body) {
+  return normalizeEmail(body?.email || body?.username);
+}
+
 /** Picks which record should authenticate when duplicates exist:
  * enabled-with-hash wins, then disabled-with-hash (so the user sees the
  * "account disabled" message instead of "invalid credentials"). Records
@@ -611,8 +618,9 @@ app.post('/api/auth/register', authRateLimit, async (req, res) => {
     return res.status(403).json({ error: 'Registration is currently disabled on this instance.' });
   }
   const { password, displayName, inviteCode } = req.body || {};
-  const username = normalizeEmail(req.body?.username);
-  const email = normalizeEmail(req.body?.email) || username;
+  // Email is the account identifier; `username` is a legacy alias for it.
+  const username = loginIdentifierFrom(req.body);
+  const email = username;
   if (!username || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
@@ -676,10 +684,13 @@ app.post('/api/auth/register', authRateLimit, async (req, res) => {
 });
 
 app.post('/api/auth/login', authRateLimit, async (req, res) => {
-  const { username, password } = req.body || {};
-  const identifier = normalizeEmail(username);
-  if (!identifier || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
+  const { password } = req.body || {};
+  const identifier = loginIdentifierFrom(req.body);
+  if (!identifier) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+  if (!password) {
+    return res.status(400).json({ error: 'Password is required' });
   }
 
   try {
@@ -1596,6 +1607,7 @@ export {
   getPasswordHash,
   findAccountCandidates,
   pickLoginRecord,
+  loginIdentifierFrom,
   hashResetToken,
   findValidResetRecord,
   generateTempPassword

@@ -11,6 +11,7 @@ import {
   getPasswordHash,
   findAccountCandidates,
   pickLoginRecord,
+  loginIdentifierFrom,
   hashResetToken,
   findValidResetRecord,
   generateTempPassword
@@ -152,6 +153,23 @@ test('pickLoginRecord: returns null when no candidate has a usable hash', () => 
 test('pickLoginRecord: finds accounts via the email field when username is swapped', () => {
   const swapped = { username: 'Jacob Wiseman', email: 'jacob@example.com', password: FAKE_HASH };
   assert.equal(pickLoginRecord([swapped], 'jacob@example.com'), swapped);
+});
+
+test('loginIdentifierFrom: email-only body works (the UI sends email, not username)', () => {
+  assert.equal(loginIdentifierFrom({ email: 'frostyythedevv@gmail.com', password: 'x' }), 'frostyythedevv@gmail.com');
+  assert.equal(loginIdentifierFrom({ email: '  Frostyythedevv@Gmail.COM ' }), 'frostyythedevv@gmail.com');
+});
+
+test('loginIdentifierFrom: username still accepted as a legacy fallback', () => {
+  assert.equal(loginIdentifierFrom({ username: 'old@example.com' }), 'old@example.com');
+  // email wins when both are present
+  assert.equal(loginIdentifierFrom({ email: 'new@example.com', username: 'old@example.com' }), 'new@example.com');
+});
+
+test('loginIdentifierFrom: empty for missing/blank/malformed bodies', () => {
+  assert.equal(loginIdentifierFrom({}), '');
+  assert.equal(loginIdentifierFrom(undefined), '');
+  assert.equal(loginIdentifierFrom({ email: '   ' }), '');
 });
 
 test('hashResetToken: deterministic sha256, never the raw token', () => {

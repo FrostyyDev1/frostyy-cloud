@@ -769,7 +769,7 @@ async function handleAuthSubmit(event) {
   try {
     const { res, data } = await sendJson(
       `/api/auth/${mode === 'signup' ? 'register' : 'login'}`,
-      mode === 'signup' ? { username: email, password, email, inviteCode } : { username: email, password }
+      mode === 'signup' ? { email, password, inviteCode } : { email, password }
     );
     if (!res.ok) throw new Error(data.error || 'Authentication failed');
     state.user = data.user;

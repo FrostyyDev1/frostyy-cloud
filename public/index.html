@@ -60,13 +60,17 @@
       <!-- ============ SPLASH ============ -->
       <div id="splash-screen" class="splash" role="status" aria-live="polite">
         <div class="splash-inner">
-          <div class="splash-logo-wrap" aria-hidden="true">
-            <span class="splash-ring"></span>
-            <span class="splash-orbit"><span class="splash-particle"></span></span>
-            <span class="splash-orbit orbit-2"><span class="splash-particle"></span></span>
-            <span class="splash-logo"><svg class="icon"><use href="#i-snowflake"/></svg></span>
+          <div class="splash-mark" aria-hidden="true">
+            <span class="splash-frost"></span>
+            <svg class="splash-cloud" viewBox="0 0 24 24">
+              <path class="splash-cloud-trace" d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" pathLength="1"/>
+              <path class="splash-cloud-draw" d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" pathLength="1"/>
+            </svg>
           </div>
-          <div class="splash-title">Frostyy Cloud</div>
+          <div class="splash-title">
+            <span class="brand-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
+            <span>Frostyy&nbsp;Cloud</span>
+          </div>
           <div class="splash-loading">
             <div class="splash-status">Starting your private cloud&hellip;</div>
             <div class="splash-bar" aria-hidden="true"><span></span></div>
@@ -89,8 +93,8 @@
               <span class="brand-name">Frostyy&nbsp;Cloud</span>
             </div>
             <nav class="landing-nav-actions">
-              <button id="login-cta" class="ghost-btn">Log in</button>
-              <button class="btn" data-auth="signup">Get started</button>
+              <button id="login-cta" class="ghost-btn">Sign in</button>
+              <button class="btn" data-auth="signup">Use invite code</button>
             </nav>
           </div>
         </header>
@@ -100,10 +104,10 @@
             <div class="hero-copy">
               <div class="hero-badge"><svg class="icon"><use href="#i-shield"/></svg><span>Self-hosted. Private. Yours.</span></div>
               <h1>Your private cloud,<br /><span class="text-gradient">under your control.</span></h1>
-              <p class="hero-sub">Frostyy Cloud is self-hosted storage for individuals, freelancers, and teams. Store files, share securely, and manage everything from your own dashboard &mdash; on hardware you control.</p>
+              <p class="hero-sub">Frostyy Cloud is self-hosted storage for homelabs, small teams, and anyone who wants their files on their own hardware. Upload, organize, share, and recover files &mdash; from a server you own.</p>
               <div class="hero-actions">
-                <button id="signup-cta" class="btn btn-lg">Get started <svg class="icon"><use href="#i-arrow-right"/></svg></button>
-                <button class="ghost-btn btn-lg" data-auth="login">Log in</button>
+                <button class="btn btn-lg" data-auth="login">Sign in <svg class="icon"><use href="#i-arrow-right"/></svg></button>
+                <button id="signup-cta" class="ghost-btn btn-lg">Use invite code</button>
               </div>
               <ul class="hero-trust">
                 <li><svg class="icon"><use href="#i-shield"/></svg> Self-hosted</li>
@@ -184,29 +188,60 @@
 
           <section class="landing-features">
             <div class="section-head centered">
-              <span class="section-eyebrow">What you get</span>
-              <h2>The basics, done properly.</h2>
+              <span class="section-eyebrow">What it does</span>
+              <h2>Upload, organize, share, recover.</h2>
             </div>
-            <div class="feature-grid">
+            <div class="feature-grid feature-grid-5">
+              <div class="card feature-card">
+                <span class="feature-icon"><svg class="icon"><use href="#i-upload-cloud"/></svg></span>
+                <h3>Store files on your own server</h3>
+                <p class="muted">Upload from any browser and download from anywhere you can reach your server. No third-party cloud in the middle.</p>
+              </div>
               <div class="card feature-card">
                 <span class="feature-icon"><svg class="icon"><use href="#i-folder"/></svg></span>
-                <h3>Your files, your server</h3>
-                <p class="muted">Upload files, organize them into folders, and preview images and PDFs in the browser. Deleted items sit in trash until you say otherwise.</p>
+                <h3>Organize with folders and trash</h3>
+                <p class="muted">Folders, favorites, and search keep things findable. Deleted files wait in trash until you restore them or empty it.</p>
               </div>
               <div class="card feature-card">
                 <span class="feature-icon"><svg class="icon"><use href="#i-link"/></svg></span>
-                <h3>Private share links</h3>
-                <p class="muted">Share a file with a link. Set an expiry date if you want one, and revoke any link whenever you like.</p>
+                <h3>Share files with private links</h3>
+                <p class="muted">Give any file a private link. Add an expiry date if you want one, and revoke a link the moment you're done with it.</p>
               </div>
               <div class="card feature-card">
                 <span class="feature-icon"><svg class="icon"><use href="#i-users"/></svg></span>
-                <h3>Admin controls</h3>
-                <p class="muted">Invite users with single-use codes, set per-user storage limits, and promote or disable accounts from the admin panel.</p>
+                <h3>Manage users and storage limits</h3>
+                <p class="muted">Invite people with single-use codes, set a storage quota per user, and disable accounts from the admin panel.</p>
               </div>
               <div class="card feature-card">
                 <span class="feature-icon"><svg class="icon"><use href="#i-server"/></svg></span>
-                <h3>Runs on your hardware</h3>
-                <p class="muted">One Docker Compose file. Runs happily on a Raspberry Pi, a NAS, or whatever old machine you have lying around.</p>
+                <h3>Run it on a Pi or home server</h3>
+                <p class="muted">One Docker Compose file, ARM and x86. A Raspberry Pi, a NAS, or an old desktop in the closet all work.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="landing-selfhosted">
+            <div class="selfhosted-grid">
+              <div class="selfhosted-copy">
+                <span class="section-eyebrow">Self-hosted</span>
+                <h2>Your server. Your files. Your rules.</h2>
+                <p class="muted">Frostyy Cloud runs entirely on hardware you own. Files are stored on your disk, accounts are invite-only, and nothing phones home. If you can run Docker, you can run this.</p>
+                <ul class="selfhosted-list">
+                  <li><svg class="icon check"><use href="#i-check"/></svg> Files live on your disk, not in someone else's datacenter</li>
+                  <li><svg class="icon check"><use href="#i-check"/></svg> Invite-only signup &mdash; you decide who gets an account</li>
+                  <li><svg class="icon check"><use href="#i-check"/></svg> Per-user storage quotas you control</li>
+                  <li><svg class="icon check"><use href="#i-check"/></svg> Runs on ARM and x86 &mdash; Raspberry Pi friendly</li>
+                </ul>
+              </div>
+              <div class="selfhosted-terminal" aria-label="Setup steps">
+                <div class="terminal-bar"><span></span><span></span><span></span><em>setup</em></div>
+                <pre><code>$ git clone github.com/FrostyyDev1/frostyy-cloud
+$ cd frostyy-cloud
+$ cp .env.example .env
+$ docker compose up -d
+
+&rarr; open http://your-server:3000
+&rarr; sign up with your invite code</code></pre>
               </div>
             </div>
           </section>
@@ -217,11 +252,11 @@
                 <span class="cta-badge"><svg class="icon"><use href="#i-snowflake"/></svg></span>
                 <div>
                   <h2>Own your cloud. Start in minutes.</h2>
-                  <p>Your files never leave your server. No subscriptions, no trackers.</p>
+                  <p>No subscriptions, no trackers &mdash; just your files on your server.</p>
                 </div>
               </div>
               <div class="cta-actions">
-                <button class="btn btn-lg" data-auth="signup">Get started <svg class="icon"><use href="#i-arrow-right"/></svg></button>
+                <button class="btn btn-lg" data-auth="login">Sign in <svg class="icon"><use href="#i-arrow-right"/></svg></button>
                 <a class="cta-link" href="https://github.com/FrostyyDev1/frostyy-cloud" target="_blank" rel="noopener noreferrer">View on GitHub</a>
               </div>
             </div>
