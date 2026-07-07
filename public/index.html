@@ -94,7 +94,7 @@
             </div>
             <nav class="landing-nav-actions">
               <button id="login-cta" class="ghost-btn">Sign in</button>
-              <button class="btn" data-auth="signup">Use invite code</button>
+              <button class="btn" data-auth="signup">Create account</button>
             </nav>
           </div>
         </header>
@@ -107,11 +107,10 @@
               <p class="hero-sub">Frostyy Cloud is self-hosted storage for homelabs, small teams, and anyone who wants their files on their own hardware. Upload, organize, share, and recover files &mdash; from a server you own.</p>
               <div class="hero-actions">
                 <button class="btn btn-lg" data-auth="login">Sign in <svg class="icon"><use href="#i-arrow-right"/></svg></button>
-                <button id="signup-cta" class="ghost-btn btn-lg">Use invite code</button>
+                <button id="signup-cta" class="ghost-btn btn-lg">Create account</button>
               </div>
               <ul class="hero-trust">
                 <li><svg class="icon"><use href="#i-shield"/></svg> Self-hosted</li>
-                <li><svg class="icon"><use href="#i-lock"/></svg> Invite-only</li>
                 <li><svg class="icon"><use href="#i-server"/></svg> Docker ready</li>
                 <li><svg class="icon"><use href="#i-drive"/></svg> Raspberry Pi ready</li>
               </ul>
@@ -210,7 +209,7 @@
               <div class="card feature-card">
                 <span class="feature-icon"><svg class="icon"><use href="#i-users"/></svg></span>
                 <h3>Manage users and storage limits</h3>
-                <p class="muted">Invite people with single-use codes, set a storage quota per user, and disable accounts from the admin panel.</p>
+                <p class="muted">Set a storage quota per user, promote or demote admins, and disable accounts from the admin panel.</p>
               </div>
               <div class="card feature-card">
                 <span class="feature-icon"><svg class="icon"><use href="#i-server"/></svg></span>
@@ -225,10 +224,10 @@
               <div class="selfhosted-copy">
                 <span class="section-eyebrow">Self-hosted</span>
                 <h2>Your server. Your files. Your rules.</h2>
-                <p class="muted">Frostyy Cloud runs entirely on hardware you own. Files are stored on your disk, accounts are invite-only, and nothing phones home. If you can run Docker, you can run this.</p>
+                <p class="muted">Frostyy Cloud runs entirely on hardware you own. Files are stored on your disk, accounts live on your server, and nothing phones home. If you can run Docker, you can run this.</p>
                 <ul class="selfhosted-list">
                   <li><svg class="icon check"><use href="#i-check"/></svg> Files live on your disk, not in someone else's datacenter</li>
-                  <li><svg class="icon check"><use href="#i-check"/></svg> Invite-only signup &mdash; you decide who gets an account</li>
+                  <li><svg class="icon check"><use href="#i-check"/></svg> Registration you control &mdash; switch signups off anytime</li>
                   <li><svg class="icon check"><use href="#i-check"/></svg> Per-user storage quotas you control</li>
                   <li><svg class="icon check"><use href="#i-check"/></svg> Runs on ARM and x86 &mdash; Raspberry Pi friendly</li>
                 </ul>
@@ -241,7 +240,7 @@ $ cp .env.example .env
 $ docker compose up -d
 
 &rarr; open http://your-server:3000
-&rarr; sign up with your invite code</code></pre>
+&rarr; create your account</code></pre>
               </div>
             </div>
           </section>
@@ -359,10 +358,6 @@ $ docker compose up -d
                       <input id="auth-confirm-password" name="frostyy_confirm_password" type="password" class="input has-icon" placeholder="Re-enter your password" autocomplete="new-password" />
                     </div>
                     <span class="field-hint hidden" id="auth-confirm-hint">Passwords do not match</span>
-                  </div>
-                  <div class="field hidden" id="auth-invite-field">
-                    <label class="field-label" for="auth-invite-code">Invite code</label>
-                    <input id="auth-invite-code" name="frostyy_invite_code" class="input" placeholder="Enter your invite code" autocomplete="off" />
                   </div>
                   <button id="auth-submit" class="btn btn-block" type="submit">Continue <svg class="icon"><use href="#i-arrow-right"/></svg></button>
                 </div>
@@ -740,7 +735,7 @@ $ docker compose up -d
                   <ul class="plan-features">
                     <li><svg class="icon check"><use href="#i-check"/></svg> <span id="plan-quota-free">5 GB</span> storage quota</li>
                     <li><svg class="icon check"><use href="#i-check"/></svg> File sharing links</li>
-                    <li><svg class="icon check"><use href="#i-check"/></svg> Invite-only user accounts</li>
+                    <li><svg class="icon check"><use href="#i-check"/></svg> Multi-user accounts</li>
                     <li><svg class="icon check"><use href="#i-check"/></svg> Admin dashboard</li>
                   </ul>
                 </div>

@@ -651,10 +651,8 @@ function showAuth(mode) {
   els.authForm.dataset.mode = mode;
 
   const registrationMode = state.appConfig?.registrationMode || 'open';
-  const inviteField = document.getElementById('auth-invite-field');
   const disabledNote = document.getElementById('registration-disabled-note');
   const isSignupDisabled = mode === 'signup' && registrationMode === 'disabled';
-  if (inviteField) inviteField.classList.toggle('hidden', !(mode === 'signup' && registrationMode === 'invite'));
   if (disabledNote) disabledNote.classList.toggle('hidden', !isSignupDisabled);
   els.authForm.classList.toggle('hidden', isSignupDisabled);
   document.getElementById('auth-forgot-row')?.classList.toggle('hidden', mode !== 'login');
@@ -746,7 +744,6 @@ async function handleAuthSubmit(event) {
   const email = els.authEmail.value.trim();
   const password = els.authPassword.value;
   const confirmPassword = els.authConfirmPassword ? els.authConfirmPassword.value : '';
-  const inviteCode = document.getElementById('auth-invite-code')?.value.trim() || '';
   els.authError.innerText = '';
   els.authMessage.innerText = '';
   if (!email || !password) {
@@ -767,10 +764,7 @@ async function handleAuthSubmit(event) {
   els.authSubmit.innerText = mode === 'signup' ? 'Creating account…' : 'Signing in…';
   render();
   try {
-    const { res, data } = await sendJson(
-      `/api/auth/${mode === 'signup' ? 'register' : 'login'}`,
-      mode === 'signup' ? { email, password, inviteCode } : { email, password }
-    );
+    const { res, data } = await sendJson(`/api/auth/${mode === 'signup' ? 'register' : 'login'}`, { email, password });
     if (!res.ok) throw new Error(data.error || 'Authentication failed');
     state.user = data.user;
     state.themePreference = data.user.theme || 'dark';
@@ -783,8 +777,8 @@ async function handleAuthSubmit(event) {
     loadShared();
     loadAdminSummary();
   } catch (err) {
-    // Server-provided message (wrong password, disabled account, used invite
-    // code, ...) shows inline; the auth card stays exactly where it is.
+    // Server-provided message (wrong password, disabled account, ...) shows
+    // inline; the auth card stays exactly where it is.
     els.authError.innerText = err.message || 'Authentication failed';
     els.authPassword.value = '';
     if (els.authConfirmPassword) els.authConfirmPassword.value = '';
@@ -830,7 +824,10 @@ async function loadFiles() {
     renderFiles();
     renderBreadcrumb();
   } catch (err) {
-    showError(err.message);
+    // "Failed to fetch" means the server never answered - say something useful.
+    showError(err instanceof TypeError
+      ? 'Could not load your files. Please refresh, or check the server logs.'
+      : err.message);
   } finally {
     state.loading = false;
     render();
@@ -1648,6 +1645,7 @@ async function uploadFiles(files) {
   if (progressWrap) progressWrap.classList.add('hidden');
   if (uploaded) showMessage(`${uploaded} file${uploaded === 1 ? '' : 's'} uploaded successfully`);
   loadFiles();
+  loadFilesStatsRow();
 }
 
 function uploadSingleFile(file, total) {

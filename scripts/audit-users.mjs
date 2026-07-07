@@ -4,6 +4,7 @@
 //
 //   node scripts/audit-users.mjs
 //   node scripts/audit-users.mjs /path/to/users.json
+import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -103,6 +104,19 @@ section(
 section(
   'Records using the legacy passwordHash field (self-heals on next login)',
   users.map((u, i) => (typeof u.passwordHash === 'string' ? label(u, i) : null)).filter(Boolean)
+);
+
+section(
+  'Admin accounts (role=admin in users.json)',
+  users.map((u, i) => ((u.role || 'user') === 'admin' ? label(u, i) : null)).filter(Boolean)
+);
+
+const envAdmins = String(process.env.ADMIN_EMAILS || '')
+  .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+const knownIdentities = new Set(users.flatMap((u) => [normalize(u.username), normalize(u.email)]).filter(Boolean));
+section(
+  'ADMIN_EMAILS entries with no matching user account yet',
+  envAdmins.filter((e) => !knownIdentities.has(e))
 );
 
 console.log('\nThis audit is read-only. Back up data/users.json before editing it.');

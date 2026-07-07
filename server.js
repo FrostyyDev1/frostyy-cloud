@@ -72,7 +72,26 @@ const PREVIEWABLE_TYPES = ['image/', 'application/pdf'];
 const SESSION_SECRET = process.env.SESSION_SECRET || null;
 const TRUST_PROXY = process.env.TRUST_PROXY !== undefined ? process.env.TRUST_PROXY : '1';
 const APP_URL = process.env.APP_URL || '';
-const REGISTRATION_MODE = ['open', 'invite', 'disabled'].includes(process.env.REGISTRATION_MODE) ? process.env.REGISTRATION_MODE : 'open';
+
+// Session cookies may only carry the Secure flag when the app is actually
+// served over HTTPS. The Pi/LAN deployment runs NODE_ENV=production over
+// plain HTTP (http://192.168.0.216:3002), where a Secure cookie is silently
+// dropped by the browser - every login then looks like an instant session
+// expiry. Default: secure only when APP_URL says https. Override with
+// COOKIE_SECURE=true/false.
+const COOKIE_SECURE = process.env.COOKIE_SECURE !== undefined
+  ? String(process.env.COOKIE_SECURE).trim().toLowerCase() === 'true'
+  : APP_URL.startsWith('https://');
+
+// Invite codes are retired: registration is "open" unless explicitly disabled.
+const RAW_REGISTRATION_MODE = process.env.REGISTRATION_MODE || 'open';
+const REGISTRATION_MODE = RAW_REGISTRATION_MODE === 'disabled' ? 'disabled' : 'open';
+if (RAW_REGISTRATION_MODE === 'invite') {
+  console.warn('[config] REGISTRATION_MODE=invite is deprecated - invite codes are no longer required. Treating as "open"; use "disabled" to block signups.');
+}
+if (process.env.INVITE_CODES) {
+  console.warn('[config] INVITE_CODES is deprecated and ignored - registration no longer uses invite codes.');
+}
 const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE === 'true';
 const APP_VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version || '0.0.0';
 
@@ -80,7 +99,7 @@ if (IS_PRODUCTION && !SESSION_SECRET) {
   console.warn('[security] SESSION_SECRET is not set. Set it in production so session cookies are signed and tamper-evident.');
 }
 if (IS_PRODUCTION && REGISTRATION_MODE === 'open') {
-  console.warn('[security] REGISTRATION_MODE=open in production - anyone can create an account. Set REGISTRATION_MODE=invite or disabled for a public/beta deployment.');
+  console.warn('[security] Registration is open - anyone who can reach this server can create an account. Set REGISTRATION_MODE=disabled once your accounts exist if you want to stop new signups.');
 }
 
 const dataDir = path.join(__dirname, 'data');
@@ -116,21 +135,6 @@ if (!fs.existsSync(invitesFile)) {
 }
 if (!fs.existsSync(passwordResetsFile)) {
   fs.writeFileSync(passwordResetsFile, JSON.stringify([], null, 2));
-}
-
-// Seed any codes listed in INVITE_CODES (comma-separated) into invites.json on
-// startup, without touching codes that already exist there (so re-deploying
-// doesn't reset who has used a code).
-{
-  const seedCodes = (process.env.INVITE_CODES || '').split(',').map((c) => c.trim()).filter(Boolean);
-  if (seedCodes.length) {
-    const existing = JSON.parse(fs.readFileSync(invitesFile, 'utf8'));
-    const existingCodes = new Set(existing.map((i) => i.code));
-    const additions = seedCodes.filter((code) => !existingCodes.has(code)).map((code) => ({ code, used: false, usedBy: null, createdAt: new Date().toISOString() }));
-    if (additions.length) {
-      fs.writeFileSync(invitesFile, JSON.stringify([...existing, ...additions], null, 2));
-    }
-  }
 }
 
 const BLOCKED_EXTENSIONS = new Set([
@@ -565,7 +569,7 @@ app.get('/api/config', (_req, res) => {
 });
 
 function cookieOptions() {
-  return { httpOnly: true, sameSite: 'lax', secure: IS_PRODUCTION, maxAge: 7 * 24 * 60 * 60 * 1000, signed: !!SESSION_SECRET };
+  return { httpOnly: true, sameSite: 'lax', secure: COOKIE_SECURE, maxAge: 7 * 24 * 60 * 60 * 1000, signed: !!SESSION_SECRET };
 }
 
 /** Lowercased, trimmed identifier for account comparisons. Never throws,
@@ -617,7 +621,7 @@ app.post('/api/auth/register', authRateLimit, async (req, res) => {
   if (REGISTRATION_MODE === 'disabled') {
     return res.status(403).json({ error: 'Registration is currently disabled on this instance.' });
   }
-  const { password, displayName, inviteCode } = req.body || {};
+  const { password, displayName } = req.body || {};
   // Email is the account identifier; `username` is a legacy alias for it.
   const username = loginIdentifierFrom(req.body);
   const email = username;
@@ -632,28 +636,6 @@ app.post('/api/auth/register', authRateLimit, async (req, res) => {
   }
 
   try {
-    // Check for an existing account BEFORE consuming an invite code, so a
-    // duplicate signup doesn't burn the code. The authoritative re-check
-    // still happens under the users lock below.
-    if (findAccountCandidates(readUsers(), username).length) {
-      return res.status(409).json({ error: 'An account with this email already exists' });
-    }
-
-    if (REGISTRATION_MODE === 'invite') {
-      const code = String(inviteCode || '').trim();
-      if (!code) return res.status(403).json({ error: 'An invite code is required to sign up.' });
-      const inviteOutcome = await withInvitesLock((invites) => {
-        const record = invites.find((i) => i.code === code);
-        if (!record) return { result: { error: 'Invalid invite code.' } };
-        if (record.used) return { result: { error: 'This invite code has already been used.' } };
-        record.used = true;
-        record.usedBy = username;
-        record.usedAt = new Date().toISOString();
-        return { result: { ok: true } };
-      });
-      if (inviteOutcome.error) return res.status(403).json({ error: inviteOutcome.error });
-    }
-
     const outcome = await withUsersLock(async (users) => {
       if (findAccountCandidates(users, username).length) {
         return { result: { error: 'An account with this email already exists' } };
@@ -1592,7 +1574,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   runTrashPurgeSweep();
   setInterval(runTrashPurgeSweep, 6 * 60 * 60 * 1000).unref();
   app.listen(PORT, () => {
-    console.log(`Frostyy Cloud is listening on http://localhost:${PORT}`);
+    console.log(`Frostyy Cloud v${APP_VERSION} listening on http://localhost:${PORT}`);
+    console.log(`[startup] NODE_ENV=${process.env.NODE_ENV || 'development'} | registration: ${REGISTRATION_MODE} | session secret: ${SESSION_SECRET ? 'configured' : 'NOT SET'} | secure cookies: ${COOKIE_SECURE ? 'on (HTTPS required)' : 'off (plain HTTP allowed)'}`);
+    console.log(`[startup] data dir: ${dataDir}`);
+    console.log(`[startup] uploads dir: ${uploadsRoot}`);
   });
 }
 

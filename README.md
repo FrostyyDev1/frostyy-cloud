@@ -17,7 +17,7 @@ Built as a homelab project and now polished toward private/public beta quality.
 - Favorites, Recent, and a Trash with configurable auto-purge (restore or delete forever any time before that)
 - Settings: display name, email, password, theme (light/dark/system), storage summary, plan info, About/version
 - Admin dashboard with per-user storage/file breakdown, search, per-user quota overrides, promote/demote, and disable/enable (admin-only)
-- Invite-only registration mode for controlled public/beta access
+- Registration switch: open by default, or disable new signups entirely
 - Concurrency-safe data layer: JSON writes are locked and atomic, so simultaneous requests can't corrupt or clobber each other's data
 - Persistent storage via Docker volumes/bind mounts — uploads and accounts survive container restarts and rebuilds
 - Responsive layout, usable on mobile
@@ -38,14 +38,14 @@ Built as a homelab project and now polished toward private/public beta quality.
 - Filename sanitization, duplicate-name handling, blocked dangerous extensions, per-file size limit, per-account storage quota
 - Share links use long random tokens, are revocable, and support optional expiration
 - Production-mode error responses never leak stack traces or internal paths
-- Invite-only / disabled registration modes for controlled access
+- Registration can be disabled entirely once your accounts exist
 - Optional maintenance mode that blocks non-admin API access with a clear message
 
 ## Current limitations (be honest with yourself before going public)
 - **Metadata storage is JSON files, not a database.** Fine for a homelab or a small private beta; for real public use with many concurrent users, migrate to SQLite or PostgreSQL — the locking layer reduces risk but doesn't replace proper transactional storage at scale.
 - **Billing is not connected.** Plans page is a professional placeholder (Free/Self-hosted is real, Pro/Business are "coming soon"). Real billing needs Stripe (or similar), invoicing, plan-based quota enforcement, cancellation flow, and updated Terms/Privacy — none of that is built.
 - **Account deletion is a placeholder.** Requesting deletion is logged but does not remove the account or its data, because a safe implementation needs to also handle owned files, shares, and admin implications.
-- **Public exposure requires deliberate setup**: HTTPS via a reverse proxy, `SESSION_SECRET` set, `REGISTRATION_MODE` set to `invite` or `disabled`, backups in place, and a review of the checklist below.
+- **Public exposure requires deliberate setup**: HTTPS via a reverse proxy, `SESSION_SECRET` set, `REGISTRATION_MODE=disabled` after creating your accounts, backups in place, and a review of the checklist below.
 
 ## Local development
 ```bash
@@ -66,7 +66,7 @@ cd frostyy-cloud
 ```bash
 cp .env.example .env
 ```
-Edit `.env`. At minimum for anything beyond local-only use, set `SESSION_SECRET`. See [Environment variables](#environment-variables) below. Note that `.env.example` ships with `REGISTRATION_MODE=invite` and a placeholder `INVITE_CODES=change-me-first-invite` so you aren't locked out of your own first deployment — sign up with that code, then remove/rotate it (or mint new ones from the Admin dashboard).
+Edit `.env`. At minimum for anything beyond local-only use, set `SESSION_SECRET`. See [Environment variables](#environment-variables) below. Registration is open by default — sign up with email + password, then set `REGISTRATION_MODE=disabled` if you don't want more accounts created.
 
 ### 3. Start the app
 ```bash
@@ -122,20 +122,21 @@ Do not expose port 3000 directly to the internet. Put a reverse proxy in front o
 - **Nginx Proxy Manager** — good if you're already running it for other services; point a proxy host at the container's port with "Force SSL" enabled.
 
 Whichever you choose, once real HTTPS is in front of the app:
-- Set `NODE_ENV=production` so auth cookies are marked `secure` (browsers won't send them over plain HTTP).
 - Set `SESSION_SECRET` so the auth cookie is signed.
+- Set `APP_URL` to your public `https://` URL — this automatically marks auth cookies `Secure` (HTTPS-only). You can also force it with `COOKIE_SECURE=true`. Do **not** enable secure cookies on a plain-HTTP LAN deployment: browsers silently drop Secure cookies over HTTP and every login will instantly "expire".
 - Set `TRUST_PROXY` appropriately (default `1` works for a single reverse proxy hop; see Express's `trust proxy` docs if you're chaining more than one proxy).
-- Optionally set `APP_URL` to your public URL for documentation/reference purposes.
-- Set `REGISTRATION_MODE=invite` (or `disabled`) — do not leave public registration open.
+- Set `REGISTRATION_MODE=disabled` once your accounts exist — do not leave public registration open on the internet.
 
 ## Environment variables
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `3000` | Port the server listens on |
-| `NODE_ENV` | (unset) | Set to `production` to enable secure cookies (requires HTTPS) |
+| `NODE_ENV` | (unset) | Set to `production` for production-safe error messages |
+| `HOST_PORT` | `3000` | Host port Docker publishes (container always listens on `PORT`). Pi uses `3002`. |
 | `SESSION_SECRET` | (unset) | Signs the auth cookie so it can't be tampered with. **Set this for any real deployment.** |
-| `REGISTRATION_MODE` | `open` | `open` \| `invite` \| `disabled`. Controls who can create an account. |
-| `INVITE_CODES` | (unset) | Comma-separated codes seeded into `data/invites.json` on startup (only adds new codes, never resets usage) |
+| `COOKIE_SECURE` | auto | `true`/`false`. Marks auth cookies HTTPS-only. Defaults on when `APP_URL` is `https://…`, off otherwise. Never enable on plain-HTTP LAN. |
+| `REGISTRATION_MODE` | `open` | `open` \| `disabled`. (`invite` is deprecated and treated as `open`.) |
+| `INVITE_CODES` | (deprecated) | Ignored — invite codes are no longer used for signup |
 | `MAX_UPLOAD_MB` | `20` | Maximum upload size per file, in megabytes (older name `MAX_FILE_SIZE_MB` still works) |
 | `DEFAULT_USER_QUOTA_MB` | `5120` | Storage quota for normal accounts, in MB (older name `STORAGE_QUOTA_MB` still works) |
 | `ADMIN_USER_QUOTA_MB` | `102400` | Storage quota for admin accounts, in MB. Accepts `unlimited` or `-1` for no cap. |
@@ -184,11 +185,8 @@ ADMIN_USER_QUOTA_MB=unlimited  # or: ADMIN_USER_QUOTA_MB=-1
 ```
 Both forms of "no limit" are equivalent; the UI shows "Unlimited" instead of a percentage. This only applies to accounts with the `admin` role — normal users always use `DEFAULT_USER_QUOTA_MB` regardless of this setting.
 
-## Invite-only registration setup
-1. Set `REGISTRATION_MODE=invite` in `.env`.
-2. Seed initial codes via `INVITE_CODES=code-one,code-two`, or mint them after the fact from the Admin dashboard (`Invites` — creates a single-use code via `POST /api/admin/invites`).
-3. Share codes out-of-band (they're single-use once redeemed). Signup shows an invite-code field automatically when this mode is active.
-4. Set `REGISTRATION_MODE=disabled` at any time to cut off new signups entirely without deleting invite data.
+## Registration modes
+Signup requires only an email and password. `REGISTRATION_MODE=open` (the default) lets anyone who can reach the server create an account; `REGISTRATION_MODE=disabled` blocks new signups entirely without touching existing accounts. Invite codes were removed — `REGISTRATION_MODE=invite` and `INVITE_CODES` are ignored (with a deprecation warning in the logs), and any old `data/invites.json` content is left alone but unused.
 
 ## Backup and restore
 
@@ -261,13 +259,16 @@ Confirm the firewall allows the port (`sudo ufw allow 3000`) and that you're usi
 3. Log out and log back in — admin status is (re)checked at login, not while a session is already active.
 4. Matching checks both your account's email *and* username case-insensitively, so this works even for accounts that never set a distinct email address.
 
-**Locked out after setting `REGISTRATION_MODE=invite`**
-Temporarily set `REGISTRATION_MODE=open`, restart, create/recover your account, then switch back to `invite`. Or use the seeded `INVITE_CODES` value from `.env.example` on first run.
+**Locked out after setting `REGISTRATION_MODE=disabled`**
+Temporarily set `REGISTRATION_MODE=open`, restart, create/recover your account, then switch back to `disabled`.
+
+**Every login instantly shows "Your session expired"**
+The auth cookie is being sent with the `Secure` flag over plain HTTP, so the browser drops it. Make sure `COOKIE_SECURE` is unset (or `false`) and `APP_URL` doesn't start with `https://` unless you actually serve HTTPS. Check the startup log line: `secure cookies: off (plain HTTP allowed)` is what you want on LAN. `node scripts/smoke-auth.mjs http://192.168.0.216:3002 you@example.com yourpassword` diagnoses this from any machine.
 
 ## Release checklist
 Before exposing this beyond your home network:
 - [ ] Set `SESSION_SECRET` to a long random value
-- [ ] Set `REGISTRATION_MODE=invite` (or `disabled`)
+- [ ] Set `REGISTRATION_MODE=disabled` once your accounts exist
 - [ ] Set `ADMIN_EMAILS` to your own account
 - [ ] Set `MAX_UPLOAD_MB`, `DEFAULT_USER_QUOTA_MB`, and `ADMIN_USER_QUOTA_MB` to values you're comfortable with
 - [ ] Confirm `./data` and `./uploads` are bind-mounted and persist across `docker compose down && docker compose up -d`

@@ -3,7 +3,9 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      # Host port is configurable so the Pi can use 3002 (Homepage owns 3000
+      # there) without editing this file: set HOST_PORT=3002 in .env.
+      - "${HOST_PORT:-3000}:3000"
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
